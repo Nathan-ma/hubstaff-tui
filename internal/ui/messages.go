@@ -16,7 +16,10 @@ type projectsErrMsg struct{ err error }
 type tasksMsg struct{ tasks []api.Task }
 type tasksErrMsg struct{ err error }
 
-type startedMsg struct{}
+type startedMsg struct {
+	taskID    string
+	projectID string
+}
 type startErrMsg struct{ err error }
 
 type stoppedMsg struct{}
@@ -28,3 +31,5 @@ type clearStatusMsg struct{}
 
 type summaryMsg struct{ rows []store.SummaryRow }
 type summaryErrMsg struct{ err error }
+type recentsMsg []store.RecentRow
+type recentsErrMsg struct{ err error }

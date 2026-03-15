@@ -165,7 +165,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if p, ok := m.projects.SelectedProject(); ok {
 						m.current = screenTasks
 						m.tasks.SetProject(p.ID, p.Name)
-						return m, tea.Batch(m.fetchTasks(p.ID), m.tasks.spinner.Tick)
+						return m, tea.Batch(m.fetchTasks(p.ID), m.fetchRecents(), m.tasks.spinner.Tick)
 					}
 				case "esc":
 					return m, tea.Quit
@@ -227,6 +227,17 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tasks.SetTasks(msg.tasks, m.status)
 		return m, nil
 
+	case recentsMsg:
+		m.tasks.SetRecents([]store.RecentRow(msg))
+		return m, nil
+
+	case recentsErrMsg:
+		// Non-critical: just log to status briefly.
+		m.statusMsg = fmt.Sprintf("Recents error: %v", msg.err)
+		m.statusErr = true
+		cmds = append(cmds, m.clearStatusAfter())
+		return m, tea.Batch(cmds...)
+
 	case tasksErrMsg:
 		m.tasks.SetError(msg.err)
 		m.statusMsg = fmt.Sprintf("Tasks error: %v", msg.err)
@@ -237,6 +248,9 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case startedMsg:
 		m.statusMsg = "Tracking started"
 		m.statusErr = false
+		if m.store != nil {
+			_ = m.store.TouchRecent(msg.taskID, msg.projectID)
+		}
 		cmds = append(cmds, m.fetchStatus(), m.clearStatusAfter())
 		return m, tea.Batch(cmds...)
 
@@ -388,13 +402,27 @@ func (m AppModel) fetchSummary() tea.Cmd {
 
 func (m AppModel) startTask(taskID, projectID string) tea.Cmd {
 	client := m.client
-	_ = projectID // reserved for future use (e.g., session tracking)
 	return func() tea.Msg {
 		err := client.StartTask(context.Background(), taskID)
 		if err != nil {
 			return startErrMsg{err: err}
 		}
-		return startedMsg{}
+		return startedMsg{taskID: taskID, projectID: projectID}
+	}
+}
+
+func (m AppModel) fetchRecents() tea.Cmd {
+	s := m.store
+	limit := m.cfg.RecentTasks.MaxItems
+	return func() tea.Msg {
+		if s == nil {
+			return recentsMsg(nil)
+		}
+		recents, err := s.ListRecents(limit)
+		if err != nil {
+			return recentsErrMsg{err: err}
+		}
+		return recentsMsg(recents)
 	}
 }
 
