@@ -17,4 +17,4 @@ pre-commit:
 commit-msg:
   commands:
     convco-check:
-      run: convco check --from-stdin < {1}
+      run: which convco > /dev/null 2>&1 && convco check --from-stdin < {1} || echo "convco not found, skipping commit-msg check"

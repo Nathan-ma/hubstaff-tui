@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/Nathan-ma/hubstaff-tui/internal/api"
+	"github.com/Nathan-ma/hubstaff-tui/internal/store"
 )
 
 // Messages used to communicate between async commands and the TUI.
@@ -24,3 +25,6 @@ type stopErrMsg struct{ err error }
 type tickMsg struct{}
 
 type clearStatusMsg struct{}
+
+type summaryMsg struct{ rows []store.SummaryRow }
+type summaryErrMsg struct{ err error }
