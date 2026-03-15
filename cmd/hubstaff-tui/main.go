@@ -70,7 +70,12 @@ func main() {
 	}
 	defer func() { _ = st.Close() }()
 
-	model := ui.NewApp(cfg, client, st)
+	// Pass config path for hot-reload; use default if not explicitly provided.
+	cfgPath := configPath
+	if cfgPath == "" {
+		cfgPath = config.DefaultConfigPath
+	}
+	model := ui.NewApp(cfg, client, st, cfgPath)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
