@@ -3,6 +3,7 @@ package api
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -148,5 +149,63 @@ func TestCLIError_Format(t *testing.T) {
 	expected := "hubstaff cli status failed (exit 1): not running"
 	if e.Error() != expected {
 		t.Errorf("expected %q, got %q", expected, e.Error())
+	}
+}
+
+func TestCheckCLI_NotFound(t *testing.T) {
+	c := NewClient("/nonexistent/path/HubstaffCLI")
+	err := c.CheckCLI()
+	if err == nil {
+		t.Fatal("expected error for nonexistent CLI path")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("expected 'not found' in error, got: %v", err)
+	}
+}
+
+func TestCheckCLI_IsDirectory(t *testing.T) {
+	dir := t.TempDir()
+	c := NewClient(dir)
+	err := c.CheckCLI()
+	if err == nil {
+		t.Fatal("expected error for directory path")
+	}
+	if !strings.Contains(err.Error(), "directory") {
+		t.Fatalf("expected 'directory' in error, got: %v", err)
+	}
+}
+
+func TestCheckCLI_NotExecutable(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "hubstaff-cli-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	// Ensure file is not executable
+	if err := os.Chmod(f.Name(), 0644); err != nil {
+		t.Fatal(err)
+	}
+	c := NewClient(f.Name())
+	err = c.CheckCLI()
+	if err == nil {
+		t.Fatal("expected error for non-executable file")
+	}
+	if !strings.Contains(err.Error(), "not executable") {
+		t.Fatalf("expected 'not executable' in error, got: %v", err)
+	}
+}
+
+func TestCheckCLI_Valid(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "hubstaff-cli-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	if err := os.Chmod(f.Name(), 0755); err != nil {
+		t.Fatal(err)
+	}
+	c := NewClient(f.Name())
+	if err := c.CheckCLI(); err != nil {
+		t.Fatalf("expected no error for valid executable, got: %v", err)
 	}
 }
