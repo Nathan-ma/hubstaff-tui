@@ -12,6 +12,7 @@ import (
 
 	"github.com/Nathan-ma/hubstaff-tui/internal/api"
 	"github.com/Nathan-ma/hubstaff-tui/internal/config"
+	"github.com/Nathan-ma/hubstaff-tui/internal/store"
 )
 
 type screen int
@@ -19,12 +20,14 @@ type screen int
 const (
 	screenProjects screen = iota
 	screenTasks
+	screenSummary
 )
 
 // AppModel is the root Bubbletea model for the TUI.
 type AppModel struct {
 	cfg    config.Config
 	client *api.Client
+	store  *store.Store
 	theme  Theme
 
 	// Navigation
@@ -33,6 +36,7 @@ type AppModel struct {
 	// Sub-models
 	projects ProjectsModel
 	tasks    TasksModel
+	summary  SummaryModel
 
 	// Global state
 	status api.Status
@@ -50,15 +54,17 @@ type AppModel struct {
 }
 
 // NewApp creates a new AppModel ready for tea.NewProgram.
-func NewApp(cfg config.Config, client *api.Client) AppModel {
+func NewApp(cfg config.Config, client *api.Client, st *store.Store) AppModel {
 	theme := GetTheme(cfg.UI.Theme)
 	return AppModel{
 		cfg:      cfg,
 		client:   client,
+		store:    st,
 		theme:    theme,
 		current:  screenProjects,
 		projects: NewProjectsModel(theme),
 		tasks:    NewTasksModel(theme),
+		summary:  NewSummaryModel(theme),
 	}
 }
 
@@ -86,6 +92,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.projects.SetSize(m.width, contentHeight)
 		m.tasks.SetSize(m.width, contentHeight)
+		m.summary.SetSize(m.width, contentHeight)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -101,6 +108,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.statusMsg = "Refreshing..."
 				m.statusErr = false
 				return m, tea.Batch(cmds...)
+			case "T":
+				if m.current != screenSummary {
+					m.current = screenSummary
+					m.summary.SetSize(m.width, m.height-2) // header + footer
+					return m, m.fetchSummary()
+				}
 			}
 		}
 
@@ -125,6 +138,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, m.startTask(t.ID, m.tasks.projectID)
 					}
 				case "esc":
+					m.current = screenProjects
+					return m, nil
+				}
+			case screenSummary:
+				switch msg.String() {
+				case "esc", "T":
 					m.current = screenProjects
 					return m, nil
 				}
@@ -206,6 +225,17 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 
+	case summaryMsg:
+		m.summary.SetRows(msg.rows)
+		return m, nil
+
+	case summaryErrMsg:
+		m.statusMsg = fmt.Sprintf("Summary error: %v", msg.err)
+		m.statusErr = true
+		m.current = screenProjects
+		cmds = append(cmds, m.clearStatusAfter(3*time.Second))
+		return m, tea.Batch(cmds...)
+
 	case clearStatusMsg:
 		m.statusMsg = ""
 		m.statusErr = false
@@ -223,6 +253,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screenTasks:
 		var cmd tea.Cmd
 		m.tasks, cmd = m.tasks.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	case screenSummary:
+		var cmd tea.Cmd
+		m.summary, cmd = m.summary.Update(msg)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -246,6 +282,8 @@ func (m AppModel) View() string {
 		content = m.projects.View()
 	case screenTasks:
 		content = m.tasks.View()
+	case screenSummary:
+		content = m.summary.View()
 	}
 
 	return header + "\n" + content + "\n" + footer
@@ -283,6 +321,20 @@ func (m AppModel) fetchTasks(projectID string) tea.Cmd {
 			return tasksErrMsg{err: err}
 		}
 		return tasksMsg{tasks: tasks}
+	}
+}
+
+func (m AppModel) fetchSummary() tea.Cmd {
+	st := m.store
+	return func() tea.Msg {
+		if st == nil {
+			return summaryErrMsg{err: fmt.Errorf("store not configured")}
+		}
+		rows, err := st.TodaySummary()
+		if err != nil {
+			return summaryErrMsg{err: err}
+		}
+		return summaryMsg{rows: rows}
 	}
 }
 
@@ -330,6 +382,8 @@ func (m AppModel) isFiltering() bool {
 		return m.projects.list.FilterState() == list.Filtering
 	case screenTasks:
 		return m.tasks.list.FilterState() == list.Filtering
+	case screenSummary:
+		return false
 	}
 	return false
 }

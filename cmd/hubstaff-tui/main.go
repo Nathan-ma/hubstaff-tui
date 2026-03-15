@@ -3,11 +3,13 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/Nathan-ma/hubstaff-tui/internal/api"
 	"github.com/Nathan-ma/hubstaff-tui/internal/config"
+	"github.com/Nathan-ma/hubstaff-tui/internal/store"
 	"github.com/Nathan-ma/hubstaff-tui/internal/ui"
 )
 
@@ -47,7 +49,21 @@ func main() {
 
 	client := api.NewClient(cfg.Hubstaff.CLIPath)
 
-	model := ui.NewApp(cfg, client)
+	// Open local store for session tracking and summaries
+	dbPath, err := cfg.ResolvedDBPath()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error resolving DB path: %v\n", err)
+		os.Exit(1)
+	}
+	ttl := time.Duration(cfg.Store.TTLSeconds) * time.Second
+	st, err := store.Open(dbPath, ttl)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error opening store: %v\n", err)
+		os.Exit(1)
+	}
+	defer st.Close()
+
+	model := ui.NewApp(cfg, client, st)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
