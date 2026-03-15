@@ -1,0 +1,18 @@
+set working-directory := '../..'
+
+# Run go vet
+vet:
+    go vet ./...
+
+# Run golangci-lint
+lint:
+    golangci-lint run
+
+# Format all Go files
+fmt:
+    gofmt -s -w .
+    goimports -w -local github.com/Nathan-ma/hubstaff-tui .
+
+# Check formatting (CI-friendly, fails if unformatted)
+fmt-check:
+    @test -z "$(gofmt -l .)" || (echo "Files need formatting:" && gofmt -l . && exit 1)
