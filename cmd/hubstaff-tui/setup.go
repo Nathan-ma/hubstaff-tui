@@ -62,7 +62,7 @@ func runSetup() {
 		fmt.Fprintf(os.Stderr, "Error: could not write to %s: %v\n", confPath, err)
 		os.Exit(1)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := f.WriteString("\n" + tmuxSnippet + "\n" + tmuxStatusSnippet); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: could not append to %s: %v\n", confPath, err)
