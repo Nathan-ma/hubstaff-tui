@@ -28,7 +28,7 @@ func main() {
 			fmt.Println("○ Not tracking")
 			os.Exit(0)
 		case "setup":
-			fmt.Println("hubstaff-tui setup: not yet implemented")
+			runSetup()
 			os.Exit(0)
 		}
 	}
