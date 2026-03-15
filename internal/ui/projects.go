@@ -110,7 +110,7 @@ func (m *ProjectsModel) SetProjects(projects []api.Project, status api.Status) {
 	items := make([]list.Item, len(projects))
 	for i, p := range projects {
 		tracking := status.Tracking && status.ActiveProject.ID == p.ID
-		active := !status.Tracking && status.ActiveProject.ID == p.ID && status.ActiveProject.ID != ""
+		active := !status.Tracking && status.ActiveProject.ID == p.ID && string(status.ActiveProject.ID) != ""
 		items[i] = projectItem{
 			project:  p,
 			tracking: tracking,

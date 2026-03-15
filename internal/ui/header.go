@@ -18,7 +18,7 @@ func (m AppModel) headerView() string {
 	if m.tracking {
 		left = m.theme.TrackingActive.Render("●") + " " +
 			m.theme.HeaderTitle.Render(m.status.ActiveProject.Name+" / "+m.status.ActiveTask.Name)
-	} else if m.status.ActiveProject.ID != "" {
+	} else if string(m.status.ActiveProject.ID) != "" {
 		left = m.theme.TrackingLast.Render("○") + " " +
 			m.theme.TimerStopped.Render("Not tracking (last: "+m.status.ActiveProject.Name+")")
 	} else {

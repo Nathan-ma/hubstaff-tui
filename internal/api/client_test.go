@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,8 +26,8 @@ func TestParseStatus_Tracking(t *testing.T) {
 	if !s.Tracking {
 		t.Error("expected Tracking to be true")
 	}
-	if s.ActiveProject.ID != "proj-1" {
-		t.Errorf("expected project ID proj-1, got %s", s.ActiveProject.ID)
+	if string(s.ActiveProject.ID) != "1" {
+		t.Errorf("expected project ID 1, got %s", s.ActiveProject.ID)
 	}
 	if s.ActiveProject.Name != "Acme Backend" {
 		t.Errorf("expected project name Acme Backend, got %s", s.ActiveProject.Name)
@@ -34,8 +35,8 @@ func TestParseStatus_Tracking(t *testing.T) {
 	if s.ActiveProject.TrackedToday != "2:15:30" {
 		t.Errorf("expected tracked today 2:15:30, got %s", s.ActiveProject.TrackedToday)
 	}
-	if s.ActiveTask.ID != "task-42" {
-		t.Errorf("expected task ID task-42, got %s", s.ActiveTask.ID)
+	if string(s.ActiveTask.ID) != "42" {
+		t.Errorf("expected task ID 42, got %s", s.ActiveTask.ID)
 	}
 	if s.ActiveTask.Name != "Fix login redirect" {
 		t.Errorf("expected task name Fix login redirect, got %s", s.ActiveTask.Name)
@@ -51,7 +52,7 @@ func TestParseStatus_NotTracking(t *testing.T) {
 	if s.Tracking {
 		t.Error("expected Tracking to be false")
 	}
-	if s.ActiveProject.ID != "" {
+	if string(s.ActiveProject.ID) != "" {
 		t.Errorf("expected empty project ID, got %s", s.ActiveProject.ID)
 	}
 	if s.ActiveProject.Name != "" {
@@ -60,7 +61,7 @@ func TestParseStatus_NotTracking(t *testing.T) {
 	if s.ActiveProject.TrackedToday != "0:00:00" {
 		t.Errorf("expected tracked today 0:00:00, got %s", s.ActiveProject.TrackedToday)
 	}
-	if s.ActiveTask.ID != "" {
+	if string(s.ActiveTask.ID) != "" {
 		t.Errorf("expected empty task ID, got %s", s.ActiveTask.ID)
 	}
 	if s.ActiveTask.Name != "" {
@@ -77,13 +78,13 @@ func TestParseProjects(t *testing.T) {
 	if len(projects) != 3 {
 		t.Fatalf("expected 3 projects, got %d", len(projects))
 	}
-	if projects[0].ID != "proj-1" || projects[0].Name != "Acme Backend" {
+	if string(projects[0].ID) != "1" || projects[0].Name != "Acme Backend" {
 		t.Errorf("unexpected first project: %+v", projects[0])
 	}
-	if projects[1].ID != "proj-2" || projects[1].Name != "Acme Frontend" {
+	if string(projects[1].ID) != "2" || projects[1].Name != "Acme Frontend" {
 		t.Errorf("unexpected second project: %+v", projects[1])
 	}
-	if projects[2].ID != "proj-3" || projects[2].Name != "Internal Tools" {
+	if string(projects[2].ID) != "3" || projects[2].Name != "Internal Tools" {
 		t.Errorf("unexpected third project: %+v", projects[2])
 	}
 }
@@ -207,5 +208,102 @@ func TestCheckCLI_Valid(t *testing.T) {
 	c := NewClient(f.Name())
 	if err := c.CheckCLI(); err != nil {
 		t.Fatalf("expected no error for valid executable, got: %v", err)
+	}
+}
+
+func TestParseProjects_NumericIDs(t *testing.T) {
+	data := `{"projects":[{"id":123,"name":"Test Project"}]}`
+	projects, err := parseProjects([]byte(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(projects[0].ID) != "123" {
+		t.Fatalf("expected ID '123', got '%s'", projects[0].ID)
+	}
+}
+
+func TestParseStatus_NumericIDs(t *testing.T) {
+	data := `{"tracking":true,"active_project":{"id":1,"name":"Test","tracked_today":"1:00:00"},"active_task":{"id":42,"name":"Task"}}`
+	status, err := parseStatus([]byte(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(status.ActiveProject.ID) != "1" {
+		t.Fatalf("expected project ID '1', got '%s'", status.ActiveProject.ID)
+	}
+	if string(status.ActiveTask.ID) != "42" {
+		t.Fatalf("expected task ID '42', got '%s'", status.ActiveTask.ID)
+	}
+}
+
+func TestParseTasks_NumericIDs(t *testing.T) {
+	data := `{"tasks":[{"id":42,"summary":"Test Task"}]}`
+	tasks, err := parseTasks([]byte(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(tasks[0].ID) != "42" {
+		t.Fatalf("expected ID '42', got '%s'", tasks[0].ID)
+	}
+}
+
+func TestFlexibleID_String(t *testing.T) {
+	data := []byte(`"abc123"`)
+	var id FlexibleID
+	if err := json.Unmarshal(data, &id); err != nil {
+		t.Fatal(err)
+	}
+	if string(id) != "abc123" {
+		t.Fatalf("expected 'abc123', got '%s'", id)
+	}
+}
+
+func TestFlexibleID_Number(t *testing.T) {
+	data := []byte(`42`)
+	var id FlexibleID
+	if err := json.Unmarshal(data, &id); err != nil {
+		t.Fatal(err)
+	}
+	if string(id) != "42" {
+		t.Fatalf("expected '42', got '%s'", id)
+	}
+}
+
+func TestFlexibleID_Invalid(t *testing.T) {
+	data := []byte(`null`)
+	var id FlexibleID
+	if err := json.Unmarshal(data, &id); err == nil {
+		t.Fatal("expected error for null")
+	}
+}
+
+func TestParseProjects_StringIDs(t *testing.T) {
+	data := `{"projects":[{"id":"proj-1","name":"Acme Backend"},{"id":"proj-2","name":"Acme Frontend"}]}`
+	projects, err := parseProjects([]byte(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(projects) != 2 {
+		t.Fatalf("expected 2 projects, got %d", len(projects))
+	}
+	if string(projects[0].ID) != "proj-1" {
+		t.Fatalf("expected ID 'proj-1', got '%s'", projects[0].ID)
+	}
+	if string(projects[1].ID) != "proj-2" {
+		t.Fatalf("expected ID 'proj-2', got '%s'", projects[1].ID)
+	}
+}
+
+func TestParseStatus_StringIDs(t *testing.T) {
+	data := `{"tracking":true,"active_project":{"id":"proj-1","name":"Test","tracked_today":"1:00:00"},"active_task":{"id":"task-42","name":"Task"}}`
+	status, err := parseStatus([]byte(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(status.ActiveProject.ID) != "proj-1" {
+		t.Fatalf("expected project ID 'proj-1', got '%s'", status.ActiveProject.ID)
+	}
+	if string(status.ActiveTask.ID) != "task-42" {
+		t.Fatalf("expected task ID 'task-42', got '%s'", status.ActiveTask.ID)
 	}
 }

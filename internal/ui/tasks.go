@@ -175,7 +175,7 @@ func (m *TasksModel) rebuildList() {
 	// Separate tasks into recent and non-recent groups.
 	var recentTasks, otherTasks []api.Task
 	for _, t := range m.tasks {
-		if recentIDs[t.ID] {
+		if recentIDs[string(t.ID)] {
 			recentTasks = append(recentTasks, t)
 		} else {
 			otherTasks = append(otherTasks, t)
@@ -190,7 +190,7 @@ func (m *TasksModel) rebuildList() {
 		}
 		// Simple insertion sort for small N.
 		for i := 1; i < len(recentTasks); i++ {
-			for j := i; j > 0 && orderMap[recentTasks[j].ID] < orderMap[recentTasks[j-1].ID]; j-- {
+			for j := i; j > 0 && orderMap[string(recentTasks[j].ID)] < orderMap[string(recentTasks[j-1].ID)]; j-- {
 				recentTasks[j], recentTasks[j-1] = recentTasks[j-1], recentTasks[j]
 			}
 		}
@@ -204,7 +204,7 @@ func (m *TasksModel) rebuildList() {
 
 		for _, t := range recentTasks {
 			tracking := m.status.Tracking && m.status.ActiveTask.ID == t.ID
-			active := !m.status.Tracking && m.status.ActiveTask.ID == t.ID && m.status.ActiveTask.ID != ""
+			active := !m.status.Tracking && m.status.ActiveTask.ID == t.ID && string(m.status.ActiveTask.ID) != ""
 			items = append(items, taskItem{
 				task:     t,
 				tracking: tracking,
@@ -221,7 +221,7 @@ func (m *TasksModel) rebuildList() {
 
 	for _, t := range otherTasks {
 		tracking := m.status.Tracking && m.status.ActiveTask.ID == t.ID
-		active := !m.status.Tracking && m.status.ActiveTask.ID == t.ID && m.status.ActiveTask.ID != ""
+		active := !m.status.Tracking && m.status.ActiveTask.ID == t.ID && string(m.status.ActiveTask.ID) != ""
 		items = append(items, taskItem{
 			task:     t,
 			tracking: tracking,

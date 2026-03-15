@@ -175,14 +175,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "enter":
 					if p, ok := m.projects.SelectedProject(); ok {
 						m.current = screenTasks
-						m.tasks.SetProject(p.ID, p.Name)
+						m.tasks.SetProject(string(p.ID), p.Name)
 						// Save state: remember selected project and cursor position.
-						m.appState.LastProjectID = p.ID
+						m.appState.LastProjectID = string(p.ID)
 						m.appState.LastProjectName = p.Name
 						m.appState.LastTaskID = ""
 						m.appState.ScrollPosition = m.projects.list.Index()
 						_ = state.Save(m.statePath, m.appState)
-						return m, tea.Batch(m.fetchTasks(p.ID), m.fetchRecents(), m.tasks.spinner.Tick)
+						return m, tea.Batch(m.fetchTasks(string(p.ID)), m.fetchRecents(), m.tasks.spinner.Tick)
 					}
 				case "esc":
 					m.saveCurrentState()
@@ -192,7 +192,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				switch msg.String() {
 				case "enter":
 					if t, ok := m.tasks.SelectedTask(); ok {
-						return m, m.startTask(t.ID, m.tasks.projectID)
+						return m, m.startTask(string(t.ID), m.tasks.projectID)
 					}
 				case "esc":
 					m.current = screenProjects
@@ -235,7 +235,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Restore state: if we have a saved project, find it and restore cursor/navigation.
 		if m.appState.LastProjectID != "" {
 			for i, p := range msg.projects {
-				if p.ID == m.appState.LastProjectID {
+				if string(p.ID) == m.appState.LastProjectID {
 					// Restore cursor position, but prefer the saved scroll position
 					// if it's valid (in case the list order hasn't changed).
 					pos := m.appState.ScrollPosition
@@ -245,14 +245,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.projects.list.Select(pos)
 					// Auto-navigate to the project's tasks.
 					m.current = screenTasks
-					m.tasks.SetProject(p.ID, p.Name)
+					m.tasks.SetProject(string(p.ID), p.Name)
 					// Clear saved state so we don't re-navigate on refresh.
 					savedTaskID := m.appState.LastTaskID
 					m.appState.LastProjectID = ""
 					m.appState.LastProjectName = ""
 					m.appState.LastTaskID = ""
 					_ = savedTaskID // reserved for future task-level restore
-					return m, tea.Batch(m.fetchTasks(p.ID), m.fetchRecents(), m.tasks.spinner.Tick)
+					return m, tea.Batch(m.fetchTasks(string(p.ID)), m.fetchRecents(), m.tasks.spinner.Tick)
 				}
 			}
 			// Project not found; clear stale state and stay on projects screen.
@@ -507,7 +507,7 @@ func (m *AppModel) saveCurrentState() {
 		m.appState.LastProjectID = m.tasks.projectID
 		m.appState.LastProjectName = m.tasks.projectName
 	} else if p, ok := m.projects.SelectedProject(); ok {
-		m.appState.LastProjectID = p.ID
+		m.appState.LastProjectID = string(p.ID)
 		m.appState.LastProjectName = p.Name
 	}
 	_ = state.Save(m.statePath, m.appState)
