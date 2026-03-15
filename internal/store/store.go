@@ -135,12 +135,12 @@ func Open(dbPath string, ttl time.Duration) (*Store, error) {
 
 	// Enable WAL mode for better concurrent read performance.
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("store: set WAL mode: %w", err)
 	}
 
 	if _, err := db.Exec(schema); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("store: create schema: %w", err)
 	}
 
@@ -160,7 +160,7 @@ func (s *Store) UpsertProjects(projects []ProjectRow) error {
 	if err != nil {
 		return fmt.Errorf("store: begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.Prepare(`
 		INSERT INTO projects (id, name, updated_at)
@@ -170,7 +170,7 @@ func (s *Store) UpsertProjects(projects []ProjectRow) error {
 	if err != nil {
 		return fmt.Errorf("store: prepare upsert projects: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	now := fmtTime(time.Now())
 	for _, p := range projects {
@@ -189,7 +189,7 @@ func (s *Store) ListProjects() ([]ProjectRow, bool, error) {
 	if err != nil {
 		return nil, false, fmt.Errorf("store: list projects: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	cutoff := time.Now().UTC().Add(-s.ttl)
 	var projects []ProjectRow
@@ -232,7 +232,7 @@ func (s *Store) UpsertTasks(projectID string, tasks []TaskRow) error {
 	if err != nil {
 		return fmt.Errorf("store: begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.Prepare(`
 		INSERT INTO tasks (id, summary, project_id, updated_at)
@@ -242,7 +242,7 @@ func (s *Store) UpsertTasks(projectID string, tasks []TaskRow) error {
 	if err != nil {
 		return fmt.Errorf("store: prepare upsert tasks: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	now := fmtTime(time.Now())
 	for _, t := range tasks {
@@ -264,7 +264,7 @@ func (s *Store) ListTasks(projectID string) ([]TaskRow, bool, error) {
 	if err != nil {
 		return nil, false, fmt.Errorf("store: list tasks: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	cutoff := time.Now().UTC().Add(-s.ttl)
 	var tasks []TaskRow
@@ -354,7 +354,7 @@ func (s *Store) TodaySummary() ([]SummaryRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("store: today summary: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var summary []SummaryRow
 	for rows.Next() {
@@ -388,7 +388,7 @@ func (s *Store) ListRecents(limit int) ([]RecentRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("store: list recents: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var recents []RecentRow
 	for rows.Next() {
@@ -411,7 +411,7 @@ func (s *Store) InvalidateAll() error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	if _, err := tx.Exec("UPDATE projects SET updated_at = ?", epoch); err != nil {
 		return err

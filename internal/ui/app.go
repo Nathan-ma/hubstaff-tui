@@ -151,7 +151,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statusErrMsg:
 		m.statusMsg = fmt.Sprintf("Status error: %v", msg.err)
 		m.statusErr = true
-		cmds = append(cmds, m.clearStatusAfter(3*time.Second))
+		cmds = append(cmds, m.clearStatusAfter())
 		return m, tea.Batch(cmds...)
 
 	case projectsMsg:
@@ -161,7 +161,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case projectsErrMsg:
 		m.statusMsg = fmt.Sprintf("Projects error: %v", msg.err)
 		m.statusErr = true
-		cmds = append(cmds, m.clearStatusAfter(3*time.Second))
+		cmds = append(cmds, m.clearStatusAfter())
 		return m, tea.Batch(cmds...)
 
 	case tasksMsg:
@@ -172,32 +172,32 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tasks.loading = false
 		m.statusMsg = fmt.Sprintf("Tasks error: %v", msg.err)
 		m.statusErr = true
-		cmds = append(cmds, m.clearStatusAfter(3*time.Second))
+		cmds = append(cmds, m.clearStatusAfter())
 		return m, tea.Batch(cmds...)
 
 	case startedMsg:
 		m.statusMsg = "Tracking started"
 		m.statusErr = false
-		cmds = append(cmds, m.fetchStatus(), m.clearStatusAfter(3*time.Second))
+		cmds = append(cmds, m.fetchStatus(), m.clearStatusAfter())
 		return m, tea.Batch(cmds...)
 
 	case startErrMsg:
 		m.statusMsg = fmt.Sprintf("Start error: %v", msg.err)
 		m.statusErr = true
-		cmds = append(cmds, m.clearStatusAfter(3*time.Second))
+		cmds = append(cmds, m.clearStatusAfter())
 		return m, tea.Batch(cmds...)
 
 	case stoppedMsg:
 		m.tracking = false
 		m.statusMsg = "Tracking stopped"
 		m.statusErr = false
-		cmds = append(cmds, m.fetchStatus(), m.clearStatusAfter(3*time.Second))
+		cmds = append(cmds, m.fetchStatus(), m.clearStatusAfter())
 		return m, tea.Batch(cmds...)
 
 	case stopErrMsg:
 		m.statusMsg = fmt.Sprintf("Stop error: %v", msg.err)
 		m.statusErr = true
-		cmds = append(cmds, m.clearStatusAfter(3*time.Second))
+		cmds = append(cmds, m.clearStatusAfter())
 		return m, tea.Batch(cmds...)
 
 	case tickMsg:
@@ -315,8 +315,8 @@ func tickCmd() tea.Cmd {
 	})
 }
 
-func (m AppModel) clearStatusAfter(d time.Duration) tea.Cmd {
-	return tea.Tick(d, func(_ time.Time) tea.Msg {
+func (m AppModel) clearStatusAfter() tea.Cmd {
+	return tea.Tick(3*time.Second, func(_ time.Time) tea.Msg {
 		return clearStatusMsg{}
 	})
 }

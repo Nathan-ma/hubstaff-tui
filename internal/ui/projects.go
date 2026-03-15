@@ -35,8 +35,8 @@ type projectDelegate struct {
 	theme Theme
 }
 
-func (d projectDelegate) Height() int                               { return 1 }
-func (d projectDelegate) Spacing() int                              { return 0 }
+func (d projectDelegate) Height() int  { return 1 }
+func (d projectDelegate) Spacing() int { return 0 }
 func (d projectDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
 func (d projectDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
@@ -63,7 +63,7 @@ func (d projectDelegate) Render(w io.Writer, m list.Model, index int, item list.
 		line = d.theme.NormalItem.Render(fmt.Sprintf("%s %s", indicator, name))
 	}
 
-	fmt.Fprint(w, line)
+	_, _ = fmt.Fprint(w, line)
 }
 
 // NewProjectsModel creates a new projects model.
