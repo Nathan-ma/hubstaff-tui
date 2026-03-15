@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +25,25 @@ const (
 	screenTasks
 	screenSummary
 )
+
+// pane identifies which pane has focus in two-pane mode.
+type pane int
+
+const (
+	paneProjects pane = iota
+	paneTasks
+)
+
+// minTwoPaneWidth is the minimum terminal width for two-pane mode.
+const minTwoPaneWidth = 100
+
+// pendingSwitch holds the state for a quick-switch confirmation prompt.
+type pendingSwitch struct {
+	fromTaskName string
+	toTaskID     string
+	toTaskName   string
+	toProjectID  string
+}
 
 // AppModel is the root Bubbletea model for the TUI.
 type AppModel struct {
@@ -54,6 +74,9 @@ type AppModel struct {
 	showHelp bool
 	help     HelpModel
 
+	// Quick-switch confirmation
+	confirmSwitch *pendingSwitch // nil when no confirmation is pending
+
 	// Error/status messages
 	statusMsg string
 	statusErr bool
@@ -61,6 +84,14 @@ type AppModel struct {
 	// State persistence
 	appState  state.AppState
 	statePath string
+
+	// Two-pane layout
+	twoPane     bool // true when terminal width >= minTwoPaneWidth
+	focusedPane pane // which pane has focus in two-pane mode
+
+	// Debounce: tracks the last project ID we scheduled a debounce for,
+	// so we can ignore stale debounceMsg arrivals.
+	debounceProjectID string
 }
 
 // NewApp creates a new AppModel ready for tea.NewProgram.
@@ -85,11 +116,15 @@ func NewApp(cfg config.Config, client *api.Client, st *store.Store) AppModel {
 
 // Init fetches the initial status and projects concurrently.
 func (m AppModel) Init() tea.Cmd {
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		m.fetchStatus(),
 		m.fetchProjects(),
 		m.projects.spinner.Tick,
-	)
+	}
+	if m.cfg.UI.PollInterval > 0 {
+		cmds = append(cmds, m.pollCmd())
+	}
+	return tea.Batch(cmds...)
 }
 
 // Update handles all messages.
@@ -100,14 +135,35 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.twoPane = m.width >= minTwoPaneWidth
 		headerHeight := 1
 		footerHeight := 1
 		contentHeight := m.height - headerHeight - footerHeight
 		if contentHeight < 1 {
 			contentHeight = 1
 		}
-		m.projects.SetSize(m.width, contentHeight)
-		m.tasks.SetSize(m.width, contentHeight)
+		if m.twoPane {
+			// In two-pane mode: projects get 35% width, tasks get 65%.
+			// Subtract 1 for the vertical separator between panes.
+			projWidth := m.width*35/100 - 2 // -2 for border padding
+			taskWidth := m.width - projWidth - 1 - 2 // -1 separator, -2 for border padding
+			if projWidth < 10 {
+				projWidth = 10
+			}
+			if taskWidth < 10 {
+				taskWidth = 10
+			}
+			// Subtract 2 from height for pane borders (top+bottom)
+			paneHeight := contentHeight - 2
+			if paneHeight < 1 {
+				paneHeight = 1
+			}
+			m.projects.SetSize(projWidth, paneHeight)
+			m.tasks.SetSize(taskWidth, paneHeight)
+		} else {
+			m.projects.SetSize(m.width, contentHeight)
+			m.tasks.SetSize(m.width, contentHeight)
+		}
 		if m.showHelp {
 			m.help.SetSize(m.width, m.height)
 		}
@@ -129,6 +185,29 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				var cmd tea.Cmd
 				m.help, cmd = m.help.Update(msg)
 				return m, cmd
+			}
+		}
+
+		// When quick-switch confirmation is pending, intercept all keys
+		if m.confirmSwitch != nil {
+			switch msg.String() {
+			case "y":
+				ps := m.confirmSwitch
+				m.confirmSwitch = nil
+				return m, m.switchTask(ps.toTaskID, ps.toProjectID)
+			case "n", "esc":
+				m.confirmSwitch = nil
+				m.statusMsg = "Cancelled"
+				m.statusErr = false
+				cmds = append(cmds, m.clearStatusAfter())
+				return m, tea.Batch(cmds...)
+			case "ctrl+c":
+				m.confirmSwitch = nil
+				m.saveCurrentState()
+				return m, tea.Quit
+			default:
+				// Ignore all other keys while confirmation is pending
+				return m, nil
 			}
 		}
 
@@ -192,7 +271,30 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				switch msg.String() {
 				case "enter":
 					if t, ok := m.tasks.SelectedTask(); ok {
-						return m, m.startTask(string(t.ID), m.tasks.projectID)
+						selectedID := string(t.ID)
+						activeID := string(m.status.ActiveTask.ID)
+
+						// If currently tracking and the selected task is different, ask for confirmation
+						if m.tracking && activeID != "" && selectedID != activeID {
+							m.confirmSwitch = &pendingSwitch{
+								fromTaskName: m.status.ActiveTask.Name,
+								toTaskID:     selectedID,
+								toTaskName:   t.Summary,
+								toProjectID:  m.tasks.projectID,
+							}
+							return m, nil
+						}
+
+						// If selecting the already-tracking task, do nothing
+						if m.tracking && selectedID == activeID {
+							m.statusMsg = "Already tracking this task"
+							m.statusErr = false
+							cmds = append(cmds, m.clearStatusAfter())
+							return m, tea.Batch(cmds...)
+						}
+
+						// Not tracking: start immediately
+						return m, m.startTask(selectedID, m.tasks.projectID)
 					}
 				case "esc":
 					m.current = screenProjects
@@ -297,10 +399,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.store != nil {
 			_ = m.store.TouchRecent(msg.taskID, msg.projectID)
 		}
-		// Save state: remember the task that was started.
 		m.appState.LastTaskID = msg.taskID
 		_ = state.Save(m.statePath, m.appState)
 		cmds = append(cmds, m.fetchStatus(), m.clearStatusAfter())
+		if m.cfg.UI.BellEnabled() {
+			cmds = append(cmds, bellCmd())
+		}
 		return m, tea.Batch(cmds...)
 
 	case startErrMsg:
@@ -309,17 +413,39 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.clearStatusAfter())
 		return m, tea.Batch(cmds...)
 
+	case switchedMsg:
+		m.statusMsg = "Task switched"
+		m.statusErr = false
+		if m.store != nil {
+			_ = m.store.TouchRecent(msg.taskID, msg.projectID)
+		}
+		m.appState.LastTaskID = msg.taskID
+		_ = state.Save(m.statePath, m.appState)
+		cmds = append(cmds, m.fetchStatus(), m.clearStatusAfter())
+		return m, tea.Batch(cmds...)
+
 	case stoppedMsg:
 		m.tracking = false
 		m.statusMsg = "Tracking stopped"
 		m.statusErr = false
 		cmds = append(cmds, m.fetchStatus(), m.clearStatusAfter())
+		if m.cfg.UI.BellEnabled() {
+			cmds = append(cmds, bellCmd())
+		}
 		return m, tea.Batch(cmds...)
 
 	case stopErrMsg:
 		m.statusMsg = fmt.Sprintf("Stop error: %v", msg.err)
 		m.statusErr = true
 		cmds = append(cmds, m.clearStatusAfter())
+		return m, tea.Batch(cmds...)
+
+	case pollTickMsg:
+		// Re-fetch status from CLI and schedule next poll
+		cmds = append(cmds, m.fetchStatus())
+		if m.cfg.UI.PollInterval > 0 {
+			cmds = append(cmds, m.pollCmd())
+		}
 		return m, tea.Batch(cmds...)
 
 	case tickMsg:
@@ -377,7 +503,12 @@ func (m AppModel) View() string {
 	}
 
 	header := m.headerView()
-	footer := m.footerView()
+	var footer string
+	if m.confirmSwitch != nil {
+		footer = m.confirmView()
+	} else {
+		footer = m.footerView()
+	}
 
 	var content string
 	switch m.current {
@@ -398,6 +529,16 @@ func (m AppModel) View() string {
 	}
 
 	return view
+}
+
+// confirmView renders the quick-switch confirmation prompt in the footer area.
+func (m AppModel) confirmView() string {
+	prompt := fmt.Sprintf("Stop \"%s\" and start \"%s\"? (y/n)",
+		m.confirmSwitch.fromTaskName, m.confirmSwitch.toTaskName)
+	content := m.keyHint("y", "switch") + "  " +
+		m.keyHint("n", "cancel") + "  " +
+		m.theme.FooterDesc.Render(prompt)
+	return m.theme.FooterBar.Width(m.width).Render(content)
 }
 
 // --- Commands ---
@@ -460,6 +601,22 @@ func (m AppModel) startTask(taskID, projectID string) tea.Cmd {
 	}
 }
 
+// switchTask atomically stops the current task and starts a new one.
+func (m AppModel) switchTask(taskID, projectID string) tea.Cmd {
+	client := m.client
+	return func() tea.Msg {
+		// Stop current task
+		if err := client.Stop(context.Background()); err != nil {
+			return stopErrMsg{err: err}
+		}
+		// Start new task
+		if err := client.StartTask(context.Background(), taskID); err != nil {
+			return startErrMsg{err: err}
+		}
+		return switchedMsg{taskID: taskID, projectID: projectID}
+	}
+}
+
 func (m AppModel) fetchRecents() tea.Cmd {
 	s := m.store
 	limit := m.cfg.RecentTasks.MaxItems
@@ -490,6 +647,20 @@ func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(_ time.Time) tea.Msg {
 		return tickMsg{}
 	})
+}
+
+func (m AppModel) pollCmd() tea.Cmd {
+	d := time.Duration(m.cfg.UI.PollInterval) * time.Second
+	return tea.Tick(d, func(_ time.Time) tea.Msg {
+		return pollTickMsg{}
+	})
+}
+
+func bellCmd() tea.Cmd {
+	return func() tea.Msg {
+		_, _ = os.Stderr.WriteString("\a")
+		return nil
+	}
 }
 
 func (m AppModel) clearStatusAfter() tea.Cmd {

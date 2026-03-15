@@ -29,7 +29,18 @@ type StoreConfig struct {
 }
 
 type UIConfig struct {
-	Theme string `toml:"theme"`
+	Theme        string `toml:"theme"`
+	PollInterval int    `toml:"poll_interval"` // seconds, default 30; 0 disables polling
+	Bell         *bool  `toml:"bell"`          // terminal bell on start/stop, default true
+}
+
+// BellEnabled returns whether the terminal bell is enabled.
+// Defaults to true if not explicitly set.
+func (u UIConfig) BellEnabled() bool {
+	if u.Bell == nil {
+		return true
+	}
+	return *u.Bell
 }
 
 type RecentTasksConfig struct {
@@ -47,7 +58,8 @@ func DefaultConfig() Config {
 			DBPath:     "~/.local/share/hubstaff-tui/hubstaff.db",
 		},
 		UI: UIConfig{
-			Theme: "catppuccin-mocha",
+			Theme:        "catppuccin-mocha",
+			PollInterval: 30,
 		},
 		RecentTasks: RecentTasksConfig{
 			MaxItems: 5,

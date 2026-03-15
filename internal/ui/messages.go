@@ -25,6 +25,12 @@ type startErrMsg struct{ err error }
 type stoppedMsg struct{}
 type stopErrMsg struct{ err error }
 
+// switchedMsg is sent after a successful quick-switch (stop + start) operation.
+type switchedMsg struct {
+	taskID    string
+	projectID string
+}
+
 type tickMsg struct{}
 
 type clearStatusMsg struct{}
@@ -33,3 +39,10 @@ type summaryMsg struct{ rows []store.SummaryRow }
 type summaryErrMsg struct{ err error }
 type recentsMsg []store.RecentRow
 type recentsErrMsg struct{ err error }
+
+type pollTickMsg struct{}
+
+// debounceMsg is sent after a debounce delay when the project selection changes
+// in two-pane mode. If the projectID still matches the current selection,
+// tasks are fetched for that project.
+type debounceMsg struct{ projectID string }

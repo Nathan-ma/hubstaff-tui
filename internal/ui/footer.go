@@ -23,7 +23,7 @@ func (m AppModel) footerView() string {
 			m.keyHint("?", "help") + "  " +
 			m.keyHint("esc", "quit")
 	case screenTasks:
-		hints = m.keyHint("enter", "start") + "  " +
+		hints = m.keyHint("enter", "start/switch") + "  " +
 			m.keyHint("ctrl+e", "stop") + "  " +
 			m.keyHint("ctrl+r", "refresh") + "  " +
 			m.keyHint("/", "filter") + "  " +

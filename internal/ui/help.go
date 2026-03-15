@@ -147,6 +147,7 @@ func (m HelpModel) helpContent(width int) string {
 			title: "Navigation",
 			keys: []struct{ key, desc string }{
 				{"Enter", "Select project / Start task"},
+				{"Tab", "Switch pane (two-pane mode)"},
 				{"Esc", "Back / Quit"},
 				{"Ctrl+P", "Back to projects"},
 				{"j / k", "Navigate list"},

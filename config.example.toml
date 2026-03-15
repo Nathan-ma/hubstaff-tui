@@ -14,6 +14,9 @@
 [ui]
 # Theme: "catppuccin-mocha" or "plain" (ASCII-only, no colors)
 # theme = "catppuccin-mocha"
+# Background status poll interval in seconds (0 to disable)
+# poll_interval = 30
+# bell = true  # terminal bell on tracking start/stop
 
 [recent_tasks]
 # Maximum number of recent tasks to show
