@@ -19,3 +19,6 @@ mod dev '.just/dev'
 
 # Run all checks (build + vet + lint + test)
 check: build::build lint::vet lint::lint test::test
+
+# Run CI-equivalent checks (build + vet + lint + fmt-check + test with race detector and coverage)
+check-ci: build::build lint::vet lint::lint lint::fmt-check test::coverage
