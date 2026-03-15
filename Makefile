@@ -17,6 +17,7 @@ lint:
 
 install: build
 	install -m 755 $(BINARY) /usr/local/bin/$(BINARY)
+	@echo "Installed $(BINARY) to /usr/local/bin/$(BINARY)"
 
 clean:
 	rm -f $(BINARY)
