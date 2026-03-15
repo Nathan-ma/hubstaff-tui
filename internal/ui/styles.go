@@ -69,6 +69,7 @@ type Theme struct {
 	// Status messages
 	ErrorText    lipgloss.Style
 	SuccessText  lipgloss.Style
+	EmptyText    lipgloss.Style
 	SpinnerStyle lipgloss.Style
 
 	// Layout
@@ -109,6 +110,7 @@ func CatppuccinMocha() Theme {
 		// Status messages
 		ErrorText:    lipgloss.NewStyle().Foreground(CatRed).Bold(true),
 		SuccessText:  lipgloss.NewStyle().Foreground(CatGreen).Bold(true),
+		EmptyText:    lipgloss.NewStyle().Foreground(CatOverlay1),
 		SpinnerStyle: lipgloss.NewStyle().Foreground(CatBlue),
 
 		// Layout
@@ -151,6 +153,7 @@ func PlainTheme() Theme {
 		// Status messages
 		ErrorText:    lipgloss.NewStyle().Bold(true),
 		SuccessText:  lipgloss.NewStyle().Bold(true),
+		EmptyText:    lipgloss.NewStyle(),
 		SpinnerStyle: lipgloss.NewStyle(),
 
 		// Layout

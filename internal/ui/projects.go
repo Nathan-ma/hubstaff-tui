@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
@@ -28,6 +29,9 @@ type ProjectsModel struct {
 	projects []api.Project
 	status   api.Status
 	theme    Theme
+	loaded   bool
+	loadErr  error
+	spinner  spinner.Model
 }
 
 // projectDelegate renders project items with tracking indicators.
@@ -80,9 +84,14 @@ func NewProjectsModel(theme Theme) ProjectsModel {
 	l.FilterInput.PromptStyle = theme.FilterPrompt
 	l.FilterInput.TextStyle = theme.FilterText
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = theme.SpinnerStyle
+
 	return ProjectsModel{
-		list:  l,
-		theme: theme,
+		list:    l,
+		theme:   theme,
+		spinner: s,
 	}
 }
 
@@ -95,6 +104,8 @@ func (m *ProjectsModel) SetSize(width, height int) {
 func (m *ProjectsModel) SetProjects(projects []api.Project, status api.Status) {
 	m.projects = projects
 	m.status = status
+	m.loaded = true
+	m.loadErr = nil
 
 	items := make([]list.Item, len(projects))
 	for i, p := range projects {
@@ -107,6 +118,12 @@ func (m *ProjectsModel) SetProjects(projects []api.Project, status api.Status) {
 		}
 	}
 	m.list.SetItems(items)
+}
+
+// SetError records a load error for the projects model.
+func (m *ProjectsModel) SetError(err error) {
+	m.loadErr = err
+	m.loaded = true
 }
 
 // SelectedProject returns the currently selected project, if any.
@@ -124,12 +141,46 @@ func (m ProjectsModel) SelectedProject() (api.Project, bool) {
 
 // Update handles messages for the projects list.
 func (m ProjectsModel) Update(msg tea.Msg) (ProjectsModel, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	// Update spinner when not yet loaded
+	if !m.loaded {
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
-	return m, cmd
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 // View renders the projects list.
 func (m ProjectsModel) View() string {
+	// Loading state: show spinner
+	if !m.loaded {
+		return fmt.Sprintf("\n  %s Loading projects...\n", m.spinner.View())
+	}
+
+	// Error state: show error message with retry hint
+	if m.loadErr != nil {
+		errMsg := m.theme.ErrorText.Render(fmt.Sprintf("Failed to load projects: %v", m.loadErr))
+		hint := m.theme.EmptyText.Render("Press ctrl+r to retry")
+		return fmt.Sprintf("\n\n  %s\n\n  %s\n", errMsg, hint)
+	}
+
+	// Empty state: no projects found
+	if len(m.projects) == 0 {
+		emptyMsg := m.theme.EmptyText.Render("No projects found")
+		hint := m.theme.EmptyText.Render("Press ctrl+r to refresh")
+		return fmt.Sprintf("\n\n  %s\n\n  %s\n", emptyMsg, hint)
+	}
+
 	return m.list.View()
 }
