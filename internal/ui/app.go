@@ -13,6 +13,7 @@ import (
 
 	"github.com/Nathan-ma/hubstaff-tui/internal/api"
 	"github.com/Nathan-ma/hubstaff-tui/internal/config"
+	"github.com/Nathan-ma/hubstaff-tui/internal/state"
 	"github.com/Nathan-ma/hubstaff-tui/internal/store"
 )
 
@@ -56,21 +57,29 @@ type AppModel struct {
 	// Error/status messages
 	statusMsg string
 	statusErr bool
+
+	// State persistence
+	appState  state.AppState
+	statePath string
 }
 
 // NewApp creates a new AppModel ready for tea.NewProgram.
 func NewApp(cfg config.Config, client *api.Client, st *store.Store) AppModel {
 	theme := GetTheme(cfg.UI.Theme)
+	statePath := state.DefaultStatePath
+	appState := state.Load(statePath)
 	return AppModel{
-		cfg:      cfg,
-		client:   client,
-		store:    st,
-		theme:    theme,
-		current:  screenProjects,
-		projects: NewProjectsModel(theme),
-		tasks:    NewTasksModel(theme),
-		help:     NewHelpModel(theme),
-		summary:  NewSummaryModel(theme),
+		cfg:       cfg,
+		client:    client,
+		store:     st,
+		theme:     theme,
+		current:   screenProjects,
+		projects:  NewProjectsModel(theme),
+		tasks:     NewTasksModel(theme),
+		help:      NewHelpModel(theme),
+		summary:   NewSummaryModel(theme),
+		appState:  appState,
+		statePath: statePath,
 	}
 }
 
@@ -113,6 +122,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showHelp = false
 				return m, nil
 			case "ctrl+c":
+				m.saveCurrentState()
 				return m, tea.Quit
 			default:
 				// Route to viewport for scrolling (j/k/up/down/pgup/pgdown)
@@ -126,6 +136,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.isFiltering() {
 			switch msg.String() {
 			case "ctrl+c":
+				m.saveCurrentState()
 				return m, tea.Quit
 			case "?":
 				m.showHelp = true
@@ -165,9 +176,16 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if p, ok := m.projects.SelectedProject(); ok {
 						m.current = screenTasks
 						m.tasks.SetProject(p.ID, p.Name)
+						// Save state: remember selected project and cursor position.
+						m.appState.LastProjectID = p.ID
+						m.appState.LastProjectName = p.Name
+						m.appState.LastTaskID = ""
+						m.appState.ScrollPosition = m.projects.list.Index()
+						_ = state.Save(m.statePath, m.appState)
 						return m, tea.Batch(m.fetchTasks(p.ID), m.fetchRecents(), m.tasks.spinner.Tick)
 					}
 				case "esc":
+					m.saveCurrentState()
 					return m, tea.Quit
 				}
 			case screenTasks:
@@ -214,6 +232,34 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case projectsMsg:
 		m.projects.SetProjects(msg.projects, m.status)
+		// Restore state: if we have a saved project, find it and restore cursor/navigation.
+		if m.appState.LastProjectID != "" {
+			for i, p := range msg.projects {
+				if p.ID == m.appState.LastProjectID {
+					// Restore cursor position, but prefer the saved scroll position
+					// if it's valid (in case the list order hasn't changed).
+					pos := m.appState.ScrollPosition
+					if pos < 0 || pos >= len(msg.projects) {
+						pos = i
+					}
+					m.projects.list.Select(pos)
+					// Auto-navigate to the project's tasks.
+					m.current = screenTasks
+					m.tasks.SetProject(p.ID, p.Name)
+					// Clear saved state so we don't re-navigate on refresh.
+					savedTaskID := m.appState.LastTaskID
+					m.appState.LastProjectID = ""
+					m.appState.LastProjectName = ""
+					m.appState.LastTaskID = ""
+					_ = savedTaskID // reserved for future task-level restore
+					return m, tea.Batch(m.fetchTasks(p.ID), m.fetchRecents(), m.tasks.spinner.Tick)
+				}
+			}
+			// Project not found; clear stale state and stay on projects screen.
+			m.appState.LastProjectID = ""
+			m.appState.LastProjectName = ""
+			m.appState.LastTaskID = ""
+		}
 		return m, nil
 
 	case projectsErrMsg:
@@ -251,6 +297,9 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.store != nil {
 			_ = m.store.TouchRecent(msg.taskID, msg.projectID)
 		}
+		// Save state: remember the task that was started.
+		m.appState.LastTaskID = msg.taskID
+		_ = state.Save(m.statePath, m.appState)
 		cmds = append(cmds, m.fetchStatus(), m.clearStatusAfter())
 		return m, tea.Batch(cmds...)
 
@@ -450,6 +499,19 @@ func (m AppModel) clearStatusAfter() tea.Cmd {
 }
 
 // --- Helpers ---
+
+// saveCurrentState persists the current navigation state to disk.
+func (m *AppModel) saveCurrentState() {
+	m.appState.ScrollPosition = m.projects.list.Index()
+	if m.current == screenTasks {
+		m.appState.LastProjectID = m.tasks.projectID
+		m.appState.LastProjectName = m.tasks.projectName
+	} else if p, ok := m.projects.SelectedProject(); ok {
+		m.appState.LastProjectID = p.ID
+		m.appState.LastProjectName = p.Name
+	}
+	_ = state.Save(m.statePath, m.appState)
+}
 
 // isFiltering returns true if the active list is in filtering mode.
 func (m AppModel) isFiltering() bool {
