@@ -1,0 +1,41 @@
+version: 2
+
+project_name: hubstaff-tui
+
+builds:
+  - id: hubstaff-tui
+    main: ./cmd/hubstaff-tui
+    binary: hubstaff-tui
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+
+brews:
+  - repository:
+      owner: Nathan-ma
+      name: homebrew-tap
+    homepage: "https://github.com/Nathan-ma/hubstaff-tui"
+    description: "Fast Hubstaff time tracking TUI for tmux floating popups"
+    install: |
+      bin.install "hubstaff-tui"

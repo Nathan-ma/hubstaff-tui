@@ -12,13 +12,12 @@ A secondary `status` subcommand prints a compact string for tmux's `status-right
 ## Goals
 
 - Launch from tmux as a floating popup via `display-popup` with no friction
-- Browse projects and tasks in a two-pane layout with fuzzy filtering
+- Browse projects and tasks with fuzzy filtering (single-pane drill-down for MVP, two-pane in v0.2.0)
 - Start/stop a Hubstaff timer in a single keypress
 - Display a live ticking timer inside the popup header
 - Pipe current status to tmux's status bar (`hubstaff-tui status`)
 - Surface recently used tasks at the top for fast re-switching
 - Show a today's summary view (time tracked per project/task)
-- Send macOS/Linux desktop notifications for idle or long-session alerts
 - Be fully configurable via a TOML file
 - Ship as a single static binary, installable via `go install` or Homebrew
 
@@ -41,9 +40,9 @@ These checks must pass for every user story before it is considered done:
 **Description:** As a developer, I want a clean Go project structure so that the codebase is maintainable and follows standard Go conventions.
 
 **Acceptance Criteria:**
-- [ ] `go.mod` created with module path `github.com/<owner>/hubstaff-tui`
+- [ ] `go.mod` created with module path `github.com/Nathan-ma/hubstaff-tui`
 - [ ] `cmd/hubstaff-tui/main.go` as the binary entrypoint
-- [ ] Internal packages under `internal/` (api, config, ui, notify)
+- [ ] Internal packages under `internal/` (api, store, config, ui)
 - [ ] `go build ./...` produces a binary at `./hubstaff-tui`
 - [ ] Running `./hubstaff-tui --help` prints usage without panicking
 - [ ] `go vet ./...` passes clean
@@ -65,19 +64,26 @@ These checks must pass for every user story before it is considered done:
 
 ---
 
-### US-003: Disk cache with TTL
-**Description:** As a user, I want projects and tasks to load instantly from cache so that the popup feels snappy even with slow API responses.
+### US-003: Local data store (SQLite)
+**Description:** As a user, I want projects, tasks, and session history stored locally so that the popup loads instantly and today's summary view has data even when the Hubstaff API is slow.
 
 **Acceptance Criteria:**
-- [ ] `internal/api/cache.go` implements a file-based cache in `~/.cache/hubstaff-tui/`
-- [ ] Cache key per resource: `projects.json`, `tasks_<projectID>.json`
-- [ ] Configurable TTL (default 300s); cache is considered stale after TTL
-- [ ] On cache hit: return cached data immediately, trigger background refresh if stale (stale-while-revalidate)
-- [ ] On cache miss: fetch from CLI, store result, return data
-- [ ] `Status` is never cached — always a live call
-- [ ] Cache can be busted programmatically (called on `r` keypress)
-- [ ] Cache directory is created automatically if it does not exist
-- [ ] Unit tests for hit/miss/stale/invalidation logic using temp dirs
+- [ ] `internal/store/store.go` implements a SQLite-backed local store using `modernc.org/sqlite` (pure Go, no CGO — preserves static binary)
+- [ ] Database location: `~/.local/share/hubstaff-tui/hubstaff.db`
+- [ ] Schema includes three tables:
+  - `projects` (id TEXT PK, name TEXT, updated_at DATETIME)
+  - `tasks` (id TEXT PK, summary TEXT, project_id TEXT FK, updated_at DATETIME)
+  - `sessions` (id INTEGER PK AUTOINCREMENT, task_id TEXT, project_id TEXT, started_at DATETIME, stopped_at DATETIME, duration_seconds INTEGER)
+- [ ] Projects/tasks are upserted on fetch from CLI; TTL checked via `updated_at` (default 300s)
+- [ ] Stale-while-revalidate: return stale data instantly from SQLite, trigger background CLI refresh
+- [ ] On cache miss: fetch from CLI, upsert into store, return data
+- [ ] `Status` is never stored — always a live CLI call; but triggers session heartbeat writes
+- [ ] Start/stop events write session records with timestamps
+- [ ] Status polls (from tmux `status-right`) write heartbeats to update active session duration
+- [ ] Store can be busted programmatically (called on `r` keypress) — deletes TTL timestamps, forces re-fetch
+- [ ] Database and parent directory are created automatically if they do not exist
+- [ ] Unit tests for upsert/TTL/stale/invalidation/session logic using temp dirs
+- [ ] Index on `sessions(started_at)` for efficient today-query
 
 ---
 
@@ -90,9 +96,8 @@ These checks must pass for every user story before it is considered done:
 - [ ] `internal/config/config.go` exposes a `Config` struct with all supported fields
 - [ ] Supported fields:
   - `[hubstaff] cli_path` (default: `/Applications/Hubstaff.app/Contents/MacOS/HubstaffCLI`)
-  - `[cache] ttl_seconds` (default: `300`), `dir` (default: `~/.cache/hubstaff-tui`)
+  - `[store] ttl_seconds` (default: `300`), `db_path` (default: `~/.local/share/hubstaff-tui/hubstaff.db`)
   - `[ui] theme` (default: `catppuccin-mocha`)
-  - `[notify] enabled`, `idle_reminder_minutes`, `max_session_hours`
   - `[recent_tasks] max_items` (default: `5`)
 - [ ] `hubstaff-tui --config /path/to/config.toml` overrides the default path
 - [ ] Invalid TOML returns a human-readable error and exits non-zero
@@ -112,19 +117,21 @@ These checks must pass for every user story before it is considered done:
 
 ---
 
-### US-006: Two-pane project/task browser (core TUI)
-**Description:** As a user, I want to see my projects on the left and tasks on the right so that I can browse and select without multiple navigation steps.
+### US-006: Single-pane project/task browser (core TUI)
+**Description:** As a user, I want to browse projects and drill into tasks so that I can navigate and select with minimal keypresses.
+
+> **Note:** MVP implements single-pane drill-down mode only (Projects → Enter → Tasks → Esc → back). Two-pane side-by-side layout is deferred to rc-0.2.0.
 
 **Acceptance Criteria:**
-- [ ] `internal/ui/model.go` implements the root bubbletea `Model` with `Update`/`View`/`Init`
-- [ ] Left pane shows the project list with status indicators (`●` tracking, `○` last active, ` ` inactive)
-- [ ] Right pane shows tasks for the currently focused project; auto-loads when project focus changes
-- [ ] Tasks pane shows a loading spinner while tasks are being fetched
+- [ ] `internal/ui/app.go` implements the root bubbletea `Model` with `Update`/`View`/`Init` and a navigation stack
+- [ ] `internal/ui/projects.go` — projects list with status indicators (`●` tracking, `○` last active, ` ` inactive)
+- [ ] `internal/ui/tasks.go` — tasks list for selected project with back navigation
+- [ ] `Enter` on a project drills into its tasks; `Esc` returns to projects
+- [ ] Tasks screen shows a loading spinner while tasks are being fetched
 - [ ] The currently tracking task is visually highlighted in the task list
-- [ ] `Tab`/`Shift+Tab` switches focus between left and right pane
-- [ ] `j`/`k` and arrow keys navigate within the focused pane
-- [ ] Layout adapts to terminal width: below 100 cols, collapse to single-pane drill-down mode
-- [ ] Both panes have visible border labels: `Projects` and `Tasks`
+- [ ] `j`/`k` and arrow keys navigate within the list
+- [ ] `Esc` on projects screen exits the TUI (closes tmux popup via exit code 0)
+- [ ] Navigation state (selected project) is preserved when returning from tasks
 
 ---
 
@@ -136,7 +143,7 @@ These checks must pass for every user story before it is considered done:
 - [ ] Typing filters the list in real-time using fuzzy matching (`sahilm/fuzzy`)
 - [ ] Matched characters are highlighted in the list items
 - [ ] `Esc` clears the filter and returns focus to the list
-- [ ] Filter state is independent per pane (project filter does not affect task filter)
+- [ ] Filter state is independent per screen (project filter does not affect task filter)
 - [ ] Filtering works on project name and task summary text
 - [ ] Empty filter shows all items
 
@@ -150,7 +157,7 @@ These checks must pass for every user story before it is considered done:
 - [ ] While the start command is running, a spinner is shown in the task row; the UI remains responsive
 - [ ] On success, the tracking indicator updates immediately and the header timer resets
 - [ ] On error, a dismissible error message appears in the footer (not a crash)
-- [ ] Pressing `s` calls `client.Stop()` asynchronously with the same spinner/error behavior
+- [ ] Pressing `ctrl-e` calls `client.Stop()` asynchronously with the same spinner/error behavior
 - [ ] `q` and `Ctrl+C` exit the TUI cleanly (restores terminal, hides cursor)
 - [ ] After a successful `Start` or `Stop`, the status is re-fetched and the UI refreshes
 
@@ -173,7 +180,7 @@ These checks must pass for every user story before it is considered done:
 **Description:** As a user, I want my most recently tracked tasks to appear at the top of the task list so that I can re-switch context without browsing.
 
 **Acceptance Criteria:**
-- [ ] A local LRU list of up to `config.recent_tasks.max_items` (default 5) task IDs is persisted to `~/.cache/hubstaff-tui/recents.json`
+- [ ] A local LRU list of up to `config.recent_tasks.max_items` (default 5) task IDs is persisted in the SQLite store (`recents` table: task_id, project_id, used_at)
 - [ ] When a task is started, its ID is prepended to the recents list
 - [ ] In the task pane, recent tasks appear at the top under a `── Recent ──` separator, then all other tasks below
 - [ ] If a recent task ID no longer appears in the current project's task list, it is silently omitted
@@ -185,11 +192,11 @@ These checks must pass for every user story before it is considered done:
 **Description:** As a user, I want to see a breakdown of time tracked today so that I can review my work without leaving the terminal.
 
 **Acceptance Criteria:**
-- [ ] Pressing `T` toggles a full-screen summary view that replaces the two-pane layout
+- [ ] Pressing `T` toggles a full-screen summary view that replaces the main browser view
 - [ ] Summary view shows a table: `Project | Task | Duration` sorted by project, then task
 - [ ] A totals row at the bottom shows total time tracked today
-- [ ] Data is fetched from `client.GetStatus()` and any available cache
-- [ ] Pressing `T` again or `Esc` returns to the two-pane browser
+- [ ] Data is queried from the local SQLite sessions table: `SELECT project_name, task_summary, SUM(duration_seconds) WHERE date(started_at) = date('now') GROUP BY project_id, task_id`
+- [ ] Pressing `T` again or `Esc` returns to the browser
 - [ ] If no data is available for today, shows `No time tracked today`
 
 ---
@@ -208,26 +215,13 @@ These checks must pass for every user story before it is considered done:
 
 ---
 
-### US-013: Desktop notifications
-**Description:** As a user, I want to receive a desktop notification when I forget to start tracking or have been tracking too long so that I stay on top of my time.
-
-**Acceptance Criteria:**
-- [ ] `internal/notify/notify.go` wraps `osascript` (macOS) and `notify-send` (Linux) for sending notifications
-- [ ] On macOS, notification uses `osascript -e 'display notification ...'`
-- [ ] A background goroutine checks tracking state every `config.notify.idle_reminder_minutes` minutes
-- [ ] If no timer is running for longer than the configured interval, sends: `Hubstaff — No timer running for X minutes`
-- [ ] If a timer has been running for longer than `config.notify.max_session_hours`, sends: `Hubstaff — You've been tracking for X hours`
-- [ ] Notifications are disabled when `config.notify.enabled = false`
-- [ ] Notification goroutine runs only when the `hubstaff-tui` TUI is open (not the `status` subcommand)
-- [ ] If `osascript`/`notify-send` is not found, notifications are silently skipped (no crash)
-
----
+> **Note:** US-013 was removed during PRD review (March 2026). Numbering preserved for traceability.
 
 ### US-014: Help overlay
 **Description:** As a user, I want to press `?` to see all available keybindings so that I don't need to memorize them.
 
 **Acceptance Criteria:**
-- [ ] Pressing `?` renders a modal overlay on top of the two-pane layout
+- [ ] Pressing `?` renders a modal overlay on top of the current view
 - [ ] Overlay lists all keybindings grouped by context: Navigation, Tracking, Views, General
 - [ ] Pressing `?` again or `Esc` dismisses the overlay
 - [ ] Overlay is scrollable if it exceeds terminal height
@@ -251,12 +245,12 @@ These checks must pass for every user story before it is considered done:
 
 ## Functional Requirements
 
-- **FR-1:** The binary must compile to a single static binary with `CGO_ENABLED=0 go build ./...`
+- **FR-1:** The binary must compile to a single static binary with `CGO_ENABLED=0 go build ./...` (note: `modernc.org/sqlite` is pure Go, no CGO needed)
 - **FR-2:** All Hubstaff data access must go through `internal/api/Client`; no direct CLI calls in UI code
 - **FR-3:** The TUI must switch to the alternate screen buffer on start and restore it on exit
 - **FR-4:** Terminal resize (`SIGWINCH`) must reflow the layout without crashing
 - **FR-5:** All blocking operations (CLI calls, file I/O) must be performed inside bubbletea `Cmd` functions, never in `Update`
-- **FR-6:** The `status` subcommand must not launch the TUI or the notification goroutine
+- **FR-6:** The `status` subcommand must not launch the TUI; it writes session heartbeats to the local store as a side effect
 - **FR-7:** Config file absence must never cause a non-zero exit or error log
 - **FR-8:** The binary must be cross-compilable for `darwin/amd64`, `darwin/arm64`, and `linux/amd64`
 
@@ -272,6 +266,7 @@ These checks must pass for every user story before it is considered done:
 - Editing task descriptions
 - Team member time tracking views
 - Web dashboard or any non-terminal interface
+- Desktop notifications (tmux status bar is sufficient for awareness)
 - Plugin/extension system
 
 ---
@@ -279,12 +274,13 @@ These checks must pass for every user story before it is considered done:
 ## Technical Considerations
 
 - **Bubbletea v2** (March 2026): use v2 API; do not mix v1 patterns
-- **lipgloss v2** for styling (released alongside bubbletea v2)
+- **lipgloss v1 (released alongside bubbletea v2)** for styling (note: Charm versioned lipgloss v1 to accompany bubbletea v2 — they are not co-versioned)
 - **bubbles** components to use: `list`, `textinput`, `spinner`, `viewport` (for summary scroll)
 - **sahilm/fuzzy** for embedded fuzzy matching
 - **BurntSushi/toml** for config parsing
+- **modernc.org/sqlite** for local data store (pure Go, no CGO — preserves static binary and cross-compilation)
 - The `HubstaffCLI` binary is macOS-only but the config allows overriding the path for Linux compatibility
-- Cache files use the same JSON structure as the CLI output to avoid transformation overhead
+- Local SQLite store replaces file-based JSON caching; projects/tasks are upserted, sessions are accumulated
 - The `status` subcommand must be safe to call from tmux's `status-interval` refresh loop (every 5–15s); it must not leave zombie processes
 
 ---
@@ -301,9 +297,6 @@ These checks must pass for every user story before it is considered done:
 
 ## Open Questions
 
-- **Module path / GitHub username:** What org/username should the Go module path use? (e.g., `github.com/yourname/hubstaff-tui`)
-- **Single-pane fallback width:** 100 columns chosen as the breakpoint for collapsing to single-pane — confirm or adjust
-- **Notification granularity:** Should idle reminders repeat (every N minutes until tracking starts) or fire once?
-- **Today's summary data source:** `HubstaffCLI status` returns today's total per active project — confirm whether the CLI exposes per-task breakdowns or if summary is project-level only
+- **Single-pane fallback width:** 100 columns chosen as the breakpoint for collapsing to single-pane (in rc-0.2.0 two-pane mode) — confirm or adjust
 
 [/PRD]
