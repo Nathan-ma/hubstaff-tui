@@ -92,25 +92,41 @@ type AppModel struct {
 	// Debounce: tracks the last project ID we scheduled a debounce for,
 	// so we can ignore stale debounceMsg arrivals.
 	debounceProjectID string
+
+	// Config hot-reload
+	configPath    string
+	configWatcher *config.Watcher
 }
 
 // NewApp creates a new AppModel ready for tea.NewProgram.
-func NewApp(cfg config.Config, client *api.Client, st *store.Store) AppModel {
+// configPath is the path used to load cfg; it is watched for hot-reload.
+func NewApp(cfg config.Config, client *api.Client, st *store.Store, configPath string) AppModel {
 	theme := GetTheme(cfg.UI.Theme)
 	statePath := state.DefaultStatePath
 	appState := state.Load(statePath)
+
+	// Resolve and set up config watcher for hot-reload.
+	var watcher *config.Watcher
+	if configPath != "" {
+		if expanded, err := config.ExpandPath(configPath); err == nil {
+			watcher = config.NewWatcher(expanded)
+		}
+	}
+
 	return AppModel{
-		cfg:       cfg,
-		client:    client,
-		store:     st,
-		theme:     theme,
-		current:   screenProjects,
-		projects:  NewProjectsModel(theme),
-		tasks:     NewTasksModel(theme),
-		help:      NewHelpModel(theme),
-		summary:   NewSummaryModel(theme),
-		appState:  appState,
-		statePath: statePath,
+		cfg:           cfg,
+		client:        client,
+		store:         st,
+		theme:         theme,
+		current:       screenProjects,
+		projects:      NewProjectsModel(theme),
+		tasks:         NewTasksModel(theme),
+		help:          NewHelpModel(theme),
+		summary:       NewSummaryModel(theme),
+		appState:      appState,
+		statePath:     statePath,
+		configPath:    configPath,
+		configWatcher: watcher,
 	}
 }
 
@@ -123,6 +139,9 @@ func (m AppModel) Init() tea.Cmd {
 	}
 	if m.cfg.UI.PollInterval > 0 {
 		cmds = append(cmds, m.pollCmd())
+	}
+	if m.configWatcher != nil {
+		cmds = append(cmds, m.configCheckCmd())
 	}
 	return tea.Batch(cmds...)
 }
@@ -465,6 +484,34 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.clearStatusAfter())
 		return m, tea.Batch(cmds...)
 
+	case configCheckMsg:
+		if m.configWatcher != nil && m.configWatcher.Changed() {
+			path := m.configPath
+			cmds = append(cmds, func() tea.Msg {
+				newCfg, err := config.Load(path)
+				if err != nil {
+					return nil // silently ignore bad config edits
+				}
+				return configReloadedMsg{cfg: newCfg}
+			})
+		}
+		cmds = append(cmds, m.configCheckCmd())
+		return m, tea.Batch(cmds...)
+
+	case configReloadedMsg:
+		m.cfg = msg.cfg
+		newTheme := GetTheme(msg.cfg.UI.Theme)
+		m.theme = newTheme
+		// Update sub-model themes
+		m.projects.theme = newTheme
+		m.tasks.theme = newTheme
+		m.help.theme = newTheme
+		m.summary.theme = newTheme
+		m.statusMsg = "Config reloaded"
+		m.statusErr = false
+		cmds = append(cmds, m.clearStatusAfter())
+		return m, tea.Batch(cmds...)
+
 	case clearStatusMsg:
 		m.statusMsg = ""
 		m.statusErr = false
@@ -661,6 +708,12 @@ func bellCmd() tea.Cmd {
 		_, _ = os.Stderr.WriteString("\a")
 		return nil
 	}
+}
+
+func (m AppModel) configCheckCmd() tea.Cmd {
+	return tea.Tick(5*time.Second, func(_ time.Time) tea.Msg {
+		return configCheckMsg{}
+	})
 }
 
 func (m AppModel) clearStatusAfter() tea.Cmd {

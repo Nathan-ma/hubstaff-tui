@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/Nathan-ma/hubstaff-tui/internal/api"
+	"github.com/Nathan-ma/hubstaff-tui/internal/config"
 	"github.com/Nathan-ma/hubstaff-tui/internal/store"
 )
 
@@ -41,6 +42,12 @@ type recentsMsg []store.RecentRow
 type recentsErrMsg struct{ err error }
 
 type pollTickMsg struct{}
+
+// configCheckMsg triggers a check for config file changes.
+type configCheckMsg struct{}
+
+// configReloadedMsg carries a freshly loaded config after a file change.
+type configReloadedMsg struct{ cfg config.Config }
 
 // debounceMsg is sent after a debounce delay when the project selection changes
 // in two-pane mode. If the projectID still matches the current selection,
