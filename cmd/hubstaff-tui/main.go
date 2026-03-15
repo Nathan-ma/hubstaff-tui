@@ -62,7 +62,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error opening store: %v\n", err)
 		os.Exit(1)
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 
 	model := ui.NewApp(cfg, client, st)
 	p := tea.NewProgram(model, tea.WithAltScreen())

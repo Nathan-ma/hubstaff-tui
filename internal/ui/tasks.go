@@ -62,7 +62,7 @@ func (d taskDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 	// Handle separator items
 	if sep, ok := item.(separatorItem); ok {
 		line := d.theme.Separator.Render(sep.label)
-		fmt.Fprint(w, line)
+		_, _ = fmt.Fprint(w, line)
 		return
 	}
 
