@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -36,6 +37,27 @@ func NewClient(cliPath string) *Client {
 		cliPath = defaultCLIPath
 	}
 	return &Client{cliPath: cliPath, timeout: defaultTimeout}
+}
+
+// CheckCLI verifies the HubstaffCLI binary exists and is executable.
+// Returns nil if OK, or an error describing the problem.
+func (c *Client) CheckCLI() error {
+	path := c.cliPath
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("HubstaffCLI not found at %s\n\nMake sure the Hubstaff desktop app is installed.\nOr set a custom path in ~/.config/hubstaff-tui/config.toml:\n\n  [hubstaff]\n  cli_path = \"/path/to/HubstaffCLI\"", path)
+	}
+	if err != nil {
+		return fmt.Errorf("cannot access HubstaffCLI at %s: %w", path, err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("HubstaffCLI path is a directory, not a file: %s", path)
+	}
+	// Check if executable (unix only)
+	if info.Mode()&0111 == 0 {
+		return fmt.Errorf("HubstaffCLI at %s is not executable", path)
+	}
+	return nil
 }
 
 // run executes the HubstaffCLI binary with the given arguments and returns stdout bytes.

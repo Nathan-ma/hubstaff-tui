@@ -49,6 +49,12 @@ func main() {
 
 	client := api.NewClient(cfg.Hubstaff.CLIPath)
 
+	// Check dependencies before launching TUI
+	if err := client.CheckCLI(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Open local store for session tracking and summaries
 	dbPath, err := cfg.ResolvedDBPath()
 	if err != nil {
