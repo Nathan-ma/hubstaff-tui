@@ -443,6 +443,153 @@ func TestInvalidateAll(t *testing.T) {
 	}
 }
 
+func TestTodaySummary_NoSessions(t *testing.T) {
+	s := newTestStore(t)
+	summary, err := s.TodaySummary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summary) != 0 {
+		t.Fatalf("expected empty summary, got %d rows", len(summary))
+	}
+}
+
+func TestListRecents_Empty(t *testing.T) {
+	s := newTestStore(t)
+	recents, err := s.ListRecents(5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recents) != 0 {
+		t.Fatalf("expected empty recents, got %d", len(recents))
+	}
+}
+
+func TestInvalidateAll_EmptyStore(t *testing.T) {
+	s := newTestStore(t)
+	// Should not error on empty store
+	if err := s.InvalidateAll(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestStartAndStopSession_Lifecycle(t *testing.T) {
+	s := newTestStore(t)
+
+	// Start a session
+	if err := s.StartSession("task-1", "proj-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Heartbeat should work
+	if err := s.UpdateHeartbeat(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Stop should work
+	if err := s.StopSession(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Double stop should be fine (no active session)
+	if err := s.StopSession(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestListProjects_EmptyStore(t *testing.T) {
+	s := newTestStore(t)
+	projects, stale, err := s.ListProjects()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projects) != 0 {
+		t.Fatalf("expected empty projects, got %d", len(projects))
+	}
+	if !stale {
+		t.Error("expected stale for empty project list")
+	}
+}
+
+func TestListTasks_EmptyProject(t *testing.T) {
+	s := newTestStore(t)
+	tasks, stale, err := s.ListTasks("nonexistent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 0 {
+		t.Fatalf("expected empty tasks, got %d", len(tasks))
+	}
+	if !stale {
+		t.Error("expected stale for empty task list")
+	}
+}
+
+func TestUpdateHeartbeat_NoActiveSession(t *testing.T) {
+	s := newTestStore(t)
+	// Heartbeat with no active session should not error
+	if err := s.UpdateHeartbeat(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTouchRecent_UpdatesExisting(t *testing.T) {
+	s := newTestStore(t)
+
+	// Touch the same task twice — should upsert, not duplicate
+	if err := s.TouchRecent("t1", "p1"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	if err := s.TouchRecent("t1", "p1"); err != nil {
+		t.Fatal(err)
+	}
+
+	recents, err := s.ListRecents(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recents) != 1 {
+		t.Fatalf("expected 1 recent (upsert), got %d", len(recents))
+	}
+}
+
+func TestParseTime_Formats(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{"sqlite format", "2024-01-15 10:30:45.000", true},
+		{"ISO with Z millis", "2024-01-15T10:30:45.000Z", true},
+		{"ISO with Z", "2024-01-15T10:30:45Z", true},
+		{"sqlite no millis", "2024-01-15 10:30:45", true},
+		{"RFC3339", "2024-01-15T10:30:45+00:00", true},
+		{"invalid", "not-a-time", false},
+		{"empty", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := parseTime(tc.input)
+			if tc.valid && result.IsZero() {
+				t.Errorf("parseTime(%q) returned zero time, expected valid", tc.input)
+			}
+			if !tc.valid && !result.IsZero() {
+				t.Errorf("parseTime(%q) returned %v, expected zero", tc.input, result)
+			}
+		})
+	}
+}
+
+func TestFmtTime_RoundTrip(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	formatted := fmtTime(now)
+	parsed := parseTime(formatted)
+	if !parsed.Equal(now) {
+		t.Errorf("round-trip failed: formatted=%q, parsed=%v, original=%v", formatted, parsed, now)
+	}
+}
+
 func TestInvalidateTasks(t *testing.T) {
 	s := newTestStore(t)
 

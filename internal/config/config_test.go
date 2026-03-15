@@ -126,6 +126,76 @@ func TestLoad_InvalidTOML(t *testing.T) {
 	}
 }
 
+func TestExpandPath_EmptyString(t *testing.T) {
+	path, err := ExpandPath("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "" {
+		t.Fatalf("expected empty string, got %s", path)
+	}
+}
+
+func TestExpandPath_TildeOnly(t *testing.T) {
+	path, err := ExpandPath("~")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, _ := os.UserHomeDir()
+	if path != home {
+		t.Fatalf("expected %s, got %s", home, path)
+	}
+}
+
+func TestExpandPath_RelativePath(t *testing.T) {
+	path, err := ExpandPath("relative/path")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "relative/path" {
+		t.Fatalf("expected relative/path, got %s", path)
+	}
+}
+
+func TestConfig_ResolvedDBPath_Default(t *testing.T) {
+	cfg := DefaultConfig()
+	path, err := cfg.ResolvedDBPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path == "" {
+		t.Fatal("expected non-empty path")
+	}
+	if path == cfg.Store.DBPath {
+		t.Fatal("expected tilde to be expanded")
+	}
+}
+
+func TestConfig_ResolvedDBPath_Absolute(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Store.DBPath = "/tmp/test.db"
+	path, err := cfg.ResolvedDBPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "/tmp/test.db" {
+		t.Fatalf("expected /tmp/test.db, got %s", path)
+	}
+}
+
+func TestLoad_EmptyPath(t *testing.T) {
+	// Empty path should use DefaultConfigPath which likely doesn't exist,
+	// falling back to defaults.
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defaults := DefaultConfig()
+	if cfg.Hubstaff.CLIPath != defaults.Hubstaff.CLIPath {
+		t.Errorf("expected default CLIPath, got %s", cfg.Hubstaff.CLIPath)
+	}
+}
+
 func TestExpandPath_Tilde(t *testing.T) {
 	expanded, err := ExpandPath("~/some/path")
 	if err != nil {
