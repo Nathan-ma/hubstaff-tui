@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/Nathan-ma/hubstaff-tui/internal/api"
 	"github.com/Nathan-ma/hubstaff-tui/internal/config"
@@ -44,6 +45,10 @@ type AppModel struct {
 	timerStart time.Time     // when we started ticking
 	tracking   bool
 
+	// Help overlay
+	showHelp bool
+	help     HelpModel
+
 	// Error/status messages
 	statusMsg string
 	statusErr bool
@@ -59,6 +64,7 @@ func NewApp(cfg config.Config, client *api.Client) AppModel {
 		current:  screenProjects,
 		projects: NewProjectsModel(theme),
 		tasks:    NewTasksModel(theme),
+		help:     NewHelpModel(theme),
 	}
 }
 
@@ -86,14 +92,37 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.projects.SetSize(m.width, contentHeight)
 		m.tasks.SetSize(m.width, contentHeight)
+		if m.showHelp {
+			m.help.SetSize(m.width, m.height)
+		}
 		return m, nil
 
 	case tea.KeyMsg:
+		// When help overlay is visible, only handle dismiss keys and scrolling
+		if m.showHelp {
+			switch msg.String() {
+			case "?", "esc":
+				m.showHelp = false
+				return m, nil
+			case "ctrl+c":
+				return m, tea.Quit
+			default:
+				// Route to viewport for scrolling (j/k/up/down/pgup/pgdown)
+				var cmd tea.Cmd
+				m.help, cmd = m.help.Update(msg)
+				return m, cmd
+			}
+		}
+
 		// Handle global keys first, but only when not filtering
 		if !m.isFiltering() {
 			switch msg.String() {
 			case "ctrl+c":
 				return m, tea.Quit
+			case "?":
+				m.showHelp = true
+				m.help.SetSize(m.width, m.height)
+				return m, nil
 			case "ctrl+e":
 				return m, m.stopTracking()
 			case "ctrl+r":
@@ -248,7 +277,15 @@ func (m AppModel) View() string {
 		content = m.tasks.View()
 	}
 
-	return header + "\n" + content + "\n" + footer
+	view := header + "\n" + content + "\n" + footer
+
+	if m.showHelp {
+		helpBox := m.help.View()
+		overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, helpBox)
+		return overlay
+	}
+
+	return view
 }
 
 // --- Commands ---
