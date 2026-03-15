@@ -40,8 +40,8 @@ type taskDelegate struct {
 	theme Theme
 }
 
-func (d taskDelegate) Height() int  { return 1 }
-func (d taskDelegate) Spacing() int { return 0 }
+func (d taskDelegate) Height() int                             { return 1 }
+func (d taskDelegate) Spacing() int                            { return 0 }
 func (d taskDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
 func (d taskDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
