@@ -17,6 +17,20 @@ type Config struct {
 	Store       StoreConfig       `toml:"store"`
 	UI          UIConfig          `toml:"ui"`
 	RecentTasks RecentTasksConfig `toml:"recent_tasks"`
+	Keybindings KeybindingsConfig `toml:"keybindings"`
+}
+
+// KeybindingsConfig holds user-configurable keybindings.
+// All fields default to sensible values; users only need to specify overrides.
+type KeybindingsConfig struct {
+	Quit         string `toml:"quit"`
+	Stop         string `toml:"stop"`
+	Refresh      string `toml:"refresh"`
+	Filter       string `toml:"filter"`
+	Help         string `toml:"help"`
+	Summary      string `toml:"summary"`
+	SwitchPane   string `toml:"switch_pane"`
+	GlobalSearch string `toml:"global_search"`
 }
 
 type HubstaffConfig struct {
@@ -63,6 +77,16 @@ func DefaultConfig() Config {
 		},
 		RecentTasks: RecentTasksConfig{
 			MaxItems: 5,
+		},
+		Keybindings: KeybindingsConfig{
+			Quit:         "esc",
+			Stop:         "ctrl+e",
+			Refresh:      "ctrl+r",
+			Filter:       "/",
+			Help:         "?",
+			Summary:      "T",
+			SwitchPane:   "tab",
+			GlobalSearch: "ctrl+f",
 		},
 	}
 }

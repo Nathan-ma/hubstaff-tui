@@ -3,11 +3,13 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"github.com/Nathan-ma/hubstaff-tui/internal/config"
 )
 
 func TestNewHelpModel(t *testing.T) {
 	theme := CatppuccinMocha()
-	h := NewHelpModel(theme)
+	h := NewHelpModel(theme, NewKeyMap(config.DefaultConfig().Keybindings))
 
 	if h.viewport.Width != 0 {
 		t.Errorf("expected initial viewport width 0, got %d", h.viewport.Width)
@@ -19,7 +21,7 @@ func TestNewHelpModel(t *testing.T) {
 
 func TestHelpModel_SetSize(t *testing.T) {
 	theme := CatppuccinMocha()
-	h := NewHelpModel(theme)
+	h := NewHelpModel(theme, NewKeyMap(config.DefaultConfig().Keybindings))
 	h.SetSize(80, 40)
 
 	if h.width != 80 {
@@ -38,7 +40,7 @@ func TestHelpModel_SetSize(t *testing.T) {
 
 func TestHelpModel_SetSize_NarrowTerminal(t *testing.T) {
 	theme := CatppuccinMocha()
-	h := NewHelpModel(theme)
+	h := NewHelpModel(theme, NewKeyMap(config.DefaultConfig().Keybindings))
 	h.SetSize(30, 20)
 
 	// Should still have reasonable dimensions
@@ -49,7 +51,7 @@ func TestHelpModel_SetSize_NarrowTerminal(t *testing.T) {
 
 func TestHelpModel_View_ContainsKeybindings(t *testing.T) {
 	theme := CatppuccinMocha()
-	h := NewHelpModel(theme)
+	h := NewHelpModel(theme, NewKeyMap(config.DefaultConfig().Keybindings))
 	h.SetSize(80, 40)
 
 	view := h.View()
@@ -68,9 +70,9 @@ func TestHelpModel_View_ContainsKeybindings(t *testing.T) {
 
 	expectedKeys := []string{
 		"Enter",
-		"Esc",
-		"Ctrl+E",
-		"Ctrl+R",
+		"esc",
+		"ctrl+e",
+		"ctrl+r",
 		"Ctrl+C",
 	}
 	for _, key := range expectedKeys {
@@ -82,7 +84,7 @@ func TestHelpModel_View_ContainsKeybindings(t *testing.T) {
 
 func TestHelpModel_View_ContainsTitle(t *testing.T) {
 	theme := CatppuccinMocha()
-	h := NewHelpModel(theme)
+	h := NewHelpModel(theme, NewKeyMap(config.DefaultConfig().Keybindings))
 	h.SetSize(80, 40)
 
 	view := h.View()
@@ -93,7 +95,7 @@ func TestHelpModel_View_ContainsTitle(t *testing.T) {
 
 func TestHelpContent_AllSections(t *testing.T) {
 	theme := CatppuccinMocha()
-	h := NewHelpModel(theme)
+	h := NewHelpModel(theme, NewKeyMap(config.DefaultConfig().Keybindings))
 	content := h.helpContent(56)
 
 	// Should have all four sections

@@ -16,24 +16,24 @@ func (m AppModel) footerView() string {
 	switch m.current {
 	case screenProjects:
 		hints = m.keyHint("enter", "select") + "  " +
-			m.keyHint("ctrl+e", "stop") + "  " +
-			m.keyHint("ctrl+r", "refresh") + "  " +
-			m.keyHint("/", "filter") + "  " +
-			m.keyHint("T", "summary") + "  " +
-			m.keyHint("?", "help") + "  " +
-			m.keyHint("esc", "quit")
+			m.keyHint(m.keys.Stop, "stop") + "  " +
+			m.keyHint(m.keys.Refresh, "refresh") + "  " +
+			m.keyHint(m.keys.Filter, "filter") + "  " +
+			m.keyHint(m.keys.Summary, "summary") + "  " +
+			m.keyHint(m.keys.Help, "help") + "  " +
+			m.keyHint(m.keys.Quit, "quit")
 	case screenTasks:
 		hints = m.keyHint("enter", "start/switch") + "  " +
-			m.keyHint("ctrl+e", "stop") + "  " +
-			m.keyHint("ctrl+r", "refresh") + "  " +
-			m.keyHint("/", "filter") + "  " +
-			m.keyHint("T", "summary") + "  " +
-			m.keyHint("?", "help") + "  " +
-			m.keyHint("esc", "back")
+			m.keyHint(m.keys.Stop, "stop") + "  " +
+			m.keyHint(m.keys.Refresh, "refresh") + "  " +
+			m.keyHint(m.keys.Filter, "filter") + "  " +
+			m.keyHint(m.keys.Summary, "summary") + "  " +
+			m.keyHint(m.keys.Help, "help") + "  " +
+			m.keyHint(m.keys.Quit, "back")
 	case screenSummary:
 		hints = m.keyHint("j/k", "scroll") + "  " +
-			m.keyHint("T", "back") + "  " +
-			m.keyHint("esc", "back")
+			m.keyHint(m.keys.Summary, "back") + "  " +
+			m.keyHint(m.keys.Quit, "back")
 	}
 
 	// If there's a status message, show it on the right

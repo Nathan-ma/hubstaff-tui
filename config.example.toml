@@ -21,3 +21,14 @@
 [recent_tasks]
 # Maximum number of recent tasks to show
 # max_items = 5
+
+[keybindings]
+# Override default keybindings (all are optional; omitted keys use defaults)
+# quit = "esc"
+# stop = "ctrl+e"
+# refresh = "ctrl+r"
+# filter = "/"
+# help = "?"
+# summary = "T"
+# switch_pane = "tab"
+# global_search = "ctrl+f"

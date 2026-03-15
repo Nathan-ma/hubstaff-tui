@@ -12,16 +12,18 @@ import (
 type HelpModel struct {
 	viewport viewport.Model
 	theme    Theme
+	keys     KeyMap
 	width    int
 	height   int
 }
 
 // NewHelpModel creates a new HelpModel with default dimensions.
-func NewHelpModel(theme Theme) HelpModel {
+func NewHelpModel(theme Theme, keys KeyMap) HelpModel {
 	vp := viewport.New(0, 0)
 	return HelpModel{
 		viewport: vp,
 		theme:    theme,
+		keys:     keys,
 	}
 }
 
@@ -147,27 +149,27 @@ func (m HelpModel) helpContent(width int) string {
 			title: "Navigation",
 			keys: []struct{ key, desc string }{
 				{"Enter", "Select project / Start task"},
-				{"Tab", "Switch pane (two-pane mode)"},
-				{"Esc", "Back / Quit"},
+				{m.keys.SwitchPane, "Switch pane (two-pane mode)"},
+				{m.keys.Quit, "Back / Quit"},
 				{"Ctrl+P", "Back to projects"},
 				{"j / k", "Navigate list"},
-				{"/ (slash)", "Fuzzy filter"},
-				{"Esc", "Clear filter"},
+				{m.keys.Filter, "Fuzzy filter"},
+				{m.keys.Quit, "Clear filter"},
 			},
 		},
 		{
 			title: "Tracking",
 			keys: []struct{ key, desc string }{
 				{"Enter", "Start tracking selected task"},
-				{"Ctrl+E", "Stop tracking"},
+				{m.keys.Stop, "Stop tracking"},
 			},
 		},
 		{
 			title: "Views",
 			keys: []struct{ key, desc string }{
-				{"T", "Today's summary"},
-				{"?", "Toggle this help"},
-				{"Ctrl+R", "Refresh (clear cache)"},
+				{m.keys.Summary, "Today's summary"},
+				{m.keys.Help, "Toggle this help"},
+				{m.keys.Refresh, "Refresh (clear cache)"},
 			},
 		},
 		{

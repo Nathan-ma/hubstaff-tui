@@ -51,6 +51,7 @@ type AppModel struct {
 	client *api.Client
 	store  *store.Store
 	theme  Theme
+	keys   KeyMap
 
 	// Navigation
 	current screen
@@ -104,10 +105,11 @@ func NewApp(cfg config.Config, client *api.Client, st *store.Store) AppModel {
 		client:    client,
 		store:     st,
 		theme:     theme,
+		keys:      NewKeyMap(cfg.Keybindings),
 		current:   screenProjects,
 		projects:  NewProjectsModel(theme),
 		tasks:     NewTasksModel(theme),
-		help:      NewHelpModel(theme),
+		help:      NewHelpModel(theme, NewKeyMap(cfg.Keybindings)),
 		summary:   NewSummaryModel(theme),
 		appState:  appState,
 		statePath: statePath,
@@ -174,7 +176,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// When help overlay is visible, only handle dismiss keys and scrolling
 		if m.showHelp {
 			switch msg.String() {
-			case "?", "esc":
+			case m.keys.Help, m.keys.Quit:
 				m.showHelp = false
 				return m, nil
 			case "ctrl+c":
@@ -217,13 +219,13 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+c":
 				m.saveCurrentState()
 				return m, tea.Quit
-			case "?":
+			case m.keys.Help:
 				m.showHelp = true
 				m.help.SetSize(m.width, m.height)
 				return m, nil
-			case "ctrl+e":
+			case m.keys.Stop:
 				return m, m.stopTracking()
-			case "ctrl+r":
+			case m.keys.Refresh:
 				m.statusMsg = "Refreshing..."
 				m.statusErr = false
 				// Reset loaded state so spinners show again
@@ -237,7 +239,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					cmds = append(cmds, m.fetchTasks(m.tasks.projectID), m.tasks.spinner.Tick)
 				}
 				return m, tea.Batch(cmds...)
-			case "T":
+			case m.keys.Summary:
 				if m.current != screenSummary {
 					m.current = screenSummary
 					m.summary.SetSize(m.width, m.height-2) // header + footer
@@ -263,7 +265,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						_ = state.Save(m.statePath, m.appState)
 						return m, tea.Batch(m.fetchTasks(string(p.ID)), m.fetchRecents(), m.tasks.spinner.Tick)
 					}
-				case "esc":
+				case m.keys.Quit:
 					m.saveCurrentState()
 					return m, tea.Quit
 				}
@@ -296,13 +298,13 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						// Not tracking: start immediately
 						return m, m.startTask(selectedID, m.tasks.projectID)
 					}
-				case "esc":
+				case m.keys.Quit:
 					m.current = screenProjects
 					return m, nil
 				}
 			case screenSummary:
 				switch msg.String() {
-				case "esc", "T":
+				case m.keys.Quit, m.keys.Summary:
 					m.current = screenProjects
 					return m, nil
 				}
