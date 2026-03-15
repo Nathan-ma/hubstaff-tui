@@ -32,6 +32,8 @@ type TasksModel struct {
 	status      api.Status
 	theme       Theme
 	loading     bool
+	loaded      bool
+	loadErr     error
 	spinner     spinner.Model
 }
 
@@ -105,6 +107,8 @@ func (m *TasksModel) SetProject(projectID, projectName string) {
 	m.projectID = projectID
 	m.projectName = projectName
 	m.loading = true
+	m.loaded = false
+	m.loadErr = nil
 	m.list.Title = fmt.Sprintf("Tasks - %s", projectName)
 	m.list.SetItems([]list.Item{})
 }
@@ -114,6 +118,8 @@ func (m *TasksModel) SetTasks(tasks []api.Task, status api.Status) {
 	m.tasks = tasks
 	m.status = status
 	m.loading = false
+	m.loaded = true
+	m.loadErr = nil
 
 	items := make([]list.Item, len(tasks))
 	for i, t := range tasks {
@@ -126,6 +132,13 @@ func (m *TasksModel) SetTasks(tasks []api.Task, status api.Status) {
 		}
 	}
 	m.list.SetItems(items)
+}
+
+// SetError records a load error for the tasks model.
+func (m *TasksModel) SetError(err error) {
+	m.loadErr = err
+	m.loading = false
+	m.loaded = true
 }
 
 // SelectedTask returns the currently selected task, if any.
@@ -164,8 +177,24 @@ func (m TasksModel) Update(msg tea.Msg) (TasksModel, tea.Cmd) {
 
 // View renders the tasks list (with spinner when loading).
 func (m TasksModel) View() string {
+	// Loading state: show spinner
 	if m.loading {
 		return fmt.Sprintf("\n  %s Loading tasks for %s...\n", m.spinner.View(), m.projectName)
 	}
+
+	// Error state: show error message with retry hint
+	if m.loadErr != nil {
+		errMsg := m.theme.ErrorText.Render(fmt.Sprintf("Failed to load tasks: %v", m.loadErr))
+		hint := m.theme.EmptyText.Render("Press ctrl+r to retry")
+		return fmt.Sprintf("\n\n  %s\n\n  %s\n", errMsg, hint)
+	}
+
+	// Empty state: no tasks found for this project
+	if m.loaded && len(m.tasks) == 0 {
+		emptyMsg := m.theme.EmptyText.Render("No tasks found for this project")
+		hint := m.theme.EmptyText.Render("Press ctrl+r to refresh or esc to go back")
+		return fmt.Sprintf("\n\n  %s\n\n  %s\n", emptyMsg, hint)
+	}
+
 	return m.list.View()
 }

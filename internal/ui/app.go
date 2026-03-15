@@ -67,6 +67,7 @@ func (m AppModel) Init() tea.Cmd {
 	return tea.Batch(
 		m.fetchStatus(),
 		m.fetchProjects(),
+		m.projects.spinner.Tick,
 	)
 }
 
@@ -97,9 +98,18 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+e":
 				return m, m.stopTracking()
 			case "ctrl+r":
-				cmds = append(cmds, m.fetchStatus(), m.fetchProjects())
 				m.statusMsg = "Refreshing..."
 				m.statusErr = false
+				// Reset loaded state so spinners show again
+				m.projects.loaded = false
+				m.projects.loadErr = nil
+				cmds = append(cmds, m.fetchStatus(), m.fetchProjects(), m.projects.spinner.Tick)
+				if m.current == screenTasks {
+					m.tasks.loading = true
+					m.tasks.loaded = false
+					m.tasks.loadErr = nil
+					cmds = append(cmds, m.fetchTasks(m.tasks.projectID), m.tasks.spinner.Tick)
+				}
 				return m, tea.Batch(cmds...)
 			}
 		}
@@ -159,6 +169,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case projectsErrMsg:
+		m.projects.SetError(msg.err)
 		m.statusMsg = fmt.Sprintf("Projects error: %v", msg.err)
 		m.statusErr = true
 		cmds = append(cmds, m.clearStatusAfter())
@@ -169,7 +180,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tasksErrMsg:
-		m.tasks.loading = false
+		m.tasks.SetError(msg.err)
 		m.statusMsg = fmt.Sprintf("Tasks error: %v", msg.err)
 		m.statusErr = true
 		cmds = append(cmds, m.clearStatusAfter())
@@ -317,6 +328,7 @@ func tickCmd() tea.Cmd {
 
 func (m AppModel) clearStatusAfter() tea.Cmd {
 	return tea.Tick(3*time.Second, func(_ time.Time) tea.Msg {
+	return tea.Tick(d, func(_ time.Time) tea.Msg {
 		return clearStatusMsg{}
 	})
 }
