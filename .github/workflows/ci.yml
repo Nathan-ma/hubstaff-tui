@@ -2,46 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [master, rc-*]
+    branches: [master, main]
   pull_request:
-    branches: [master, rc-*]
+    branches: [master, main]
 
 permissions:
   contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ['1.24']
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ matrix.go-version }}
-
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Build
-        run: CGO_ENABLED=0 go build ./...
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Test
-        run: go test -race -coverprofile=coverage.out ./...
-
-      - name: Upload coverage
-        if: matrix.go-version == '1.24'
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: coverage.out
-
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -65,12 +33,74 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install convco
-        run: |
-          curl -sSfL https://github.com/convco/convco/releases/latest/download/convco-ubuntu.zip -o convco.zip
-          unzip convco.zip
-          chmod +x convco
-          sudo mv convco /usr/local/bin/
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Validate commits
-        run: convco check ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+      - name: Install commitlint
+        run: npm install --save-dev @commitlint/{cli,config-conventional}
+
+      - name: Lint commits
+        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
+
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go-version: ['1.24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build
+        run: CGO_ENABLED=0 go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  cross-compile:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Cross-compile
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: go build -o hubstaff-tui-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/hubstaff-tui
