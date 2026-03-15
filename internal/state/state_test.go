@@ -82,6 +82,57 @@ func TestSave_CreatesDirectory(t *testing.T) {
 	}
 }
 
+func TestLoad_EmptyFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+
+	if err := os.WriteFile(path, []byte(""), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	s := Load(path)
+	// Empty file is invalid JSON, should return zero state.
+	if s.LastProjectID != "" {
+		t.Errorf("expected empty LastProjectID for empty file, got %q", s.LastProjectID)
+	}
+}
+
+func TestSave_OverwritesExisting(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+
+	first := AppState{LastProjectID: "proj-1", LastProjectName: "First"}
+	second := AppState{LastProjectID: "proj-2", LastProjectName: "Second", ScrollPosition: 5}
+
+	if err := Save(path, first); err != nil {
+		t.Fatalf("Save first failed: %v", err)
+	}
+	if err := Save(path, second); err != nil {
+		t.Fatalf("Save second failed: %v", err)
+	}
+
+	got := Load(path)
+	if got != second {
+		t.Errorf("Load returned %+v, want %+v", got, second)
+	}
+}
+
+func TestLoad_ZeroState(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+
+	// Save a zero-valued state and load it back.
+	zero := AppState{}
+	if err := Save(path, zero); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	got := Load(path)
+	if got != zero {
+		t.Errorf("Load returned %+v, want %+v", got, zero)
+	}
+}
+
 func TestSaveAndLoad_EmptyTaskID(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
