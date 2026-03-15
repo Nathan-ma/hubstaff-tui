@@ -19,6 +19,7 @@ func (m AppModel) footerView() string {
 			m.keyHint("ctrl+e", "stop") + "  " +
 			m.keyHint("ctrl+r", "refresh") + "  " +
 			m.keyHint("/", "filter") + "  " +
+			m.keyHint("G", "search") + "  " +
 			m.keyHint("T", "summary") + "  " +
 			m.keyHint("?", "help") + "  " +
 			m.keyHint("esc", "quit")
@@ -27,7 +28,14 @@ func (m AppModel) footerView() string {
 			m.keyHint("ctrl+e", "stop") + "  " +
 			m.keyHint("ctrl+r", "refresh") + "  " +
 			m.keyHint("/", "filter") + "  " +
+			m.keyHint("G", "search") + "  " +
 			m.keyHint("T", "summary") + "  " +
+			m.keyHint("?", "help") + "  " +
+			m.keyHint("esc", "back")
+	case screenGlobalSearch:
+		hints = m.keyHint("enter", "start") + "  " +
+			m.keyHint("ctrl+e", "stop") + "  " +
+			m.keyHint("/", "filter") + "  " +
 			m.keyHint("?", "help") + "  " +
 			m.keyHint("esc", "back")
 	case screenSummary:

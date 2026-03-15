@@ -165,6 +165,7 @@ func (m HelpModel) helpContent(width int) string {
 		{
 			title: "Views",
 			keys: []struct{ key, desc string }{
+				{"G / Ctrl+F", "Global task search"},
 				{"T", "Today's summary"},
 				{"?", "Toggle this help"},
 				{"Ctrl+R", "Refresh (clear cache)"},

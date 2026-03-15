@@ -46,3 +46,20 @@ type pollTickMsg struct{}
 // in two-pane mode. If the projectID still matches the current selection,
 // tasks are fetched for that project.
 type debounceMsg struct{ projectID string }
+
+// globalTasksMsg delivers tasks for a single project during global search.
+type globalTasksMsg struct {
+	projectID   string
+	projectName string
+	tasks       []api.Task
+}
+
+// globalTasksErrMsg is sent when a project's task fetch fails during global search.
+type globalTasksErrMsg struct {
+	projectID   string
+	projectName string
+	err         error
+}
+
+// globalSearchDoneMsg signals that all project task fetches are complete.
+type globalSearchDoneMsg struct{}

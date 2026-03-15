@@ -24,6 +24,7 @@ const (
 	screenProjects screen = iota
 	screenTasks
 	screenSummary
+	screenGlobalSearch
 )
 
 // pane identifies which pane has focus in two-pane mode.
@@ -59,6 +60,7 @@ type AppModel struct {
 	projects ProjectsModel
 	tasks    TasksModel
 	summary  SummaryModel
+	search   SearchModel
 
 	// Global state
 	status api.Status
@@ -92,6 +94,9 @@ type AppModel struct {
 	// Debounce: tracks the last project ID we scheduled a debounce for,
 	// so we can ignore stale debounceMsg arrivals.
 	debounceProjectID string
+
+	// previousScreen remembers the screen to return to from global search.
+	previousScreen screen
 }
 
 // NewApp creates a new AppModel ready for tea.NewProgram.
@@ -109,6 +114,7 @@ func NewApp(cfg config.Config, client *api.Client, st *store.Store) AppModel {
 		tasks:     NewTasksModel(theme),
 		help:      NewHelpModel(theme),
 		summary:   NewSummaryModel(theme),
+		search:    NewSearchModel(theme),
 		appState:  appState,
 		statePath: statePath,
 	}
@@ -168,6 +174,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.help.SetSize(m.width, m.height)
 		}
 		m.summary.SetSize(m.width, contentHeight)
+		m.search.SetSize(m.width, contentHeight)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -243,6 +250,19 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.summary.SetSize(m.width, m.height-2) // header + footer
 					return m, m.fetchSummary()
 				}
+			case "G", "ctrl+f":
+				if m.current != screenGlobalSearch {
+					m.previousScreen = m.current
+					m.current = screenGlobalSearch
+					total := len(m.projects.projects)
+					m.search.Activate(total)
+					contentHeight := m.height - 2
+					if contentHeight < 1 {
+						contentHeight = 1
+					}
+					m.search.SetSize(m.width, contentHeight)
+					return m, tea.Batch(m.fetchAllTasksForSearch()...)
+				}
 			}
 		}
 
@@ -305,6 +325,42 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "esc", "T":
 					m.current = screenProjects
 					return m, nil
+				}
+			case screenGlobalSearch:
+				switch msg.String() {
+				case "enter":
+					if gi, ok := m.search.SelectedTask(); ok {
+						selectedID := string(gi.task.ID)
+						activeID := string(m.status.ActiveTask.ID)
+
+						// If currently tracking and the selected task is different, ask for confirmation
+						if m.tracking && activeID != "" && selectedID != activeID {
+							m.confirmSwitch = &pendingSwitch{
+								fromTaskName: m.status.ActiveTask.Name,
+								toTaskID:     selectedID,
+								toTaskName:   gi.task.Summary,
+								toProjectID:  gi.projectID,
+							}
+							return m, nil
+						}
+
+						// If selecting the already-tracking task, do nothing
+						if m.tracking && selectedID == activeID {
+							m.statusMsg = "Already tracking this task"
+							m.statusErr = false
+							cmds = append(cmds, m.clearStatusAfter())
+							return m, tea.Batch(cmds...)
+						}
+
+						// Not tracking: start immediately
+						return m, m.startTask(selectedID, gi.projectID)
+					}
+				case "esc":
+					// Only exit search if not filtering; if filtering, let the list handle it
+					if m.search.list.FilterState() != list.Filtering {
+						m.current = m.previousScreen
+						return m, nil
+					}
 				}
 			}
 		}
@@ -469,6 +525,28 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusMsg = ""
 		m.statusErr = false
 		return m, nil
+
+	case globalTasksMsg:
+		if m.current == screenGlobalSearch {
+			m.search.AddTasks(msg.projectID, msg.projectName, msg.tasks, m.status)
+		}
+		return m, nil
+
+	case globalTasksErrMsg:
+		if m.current == screenGlobalSearch {
+			// Count the failed project as loaded so progress still advances.
+			m.search.loaded++
+			if m.search.loaded >= m.search.total {
+				m.search.loading = false
+			}
+		}
+		return m, nil
+
+	case globalSearchDoneMsg:
+		if m.current == screenGlobalSearch {
+			m.search.MarkDone()
+		}
+		return m, nil
 	}
 
 	// Route to active sub-model
@@ -488,6 +566,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screenSummary:
 		var cmd tea.Cmd
 		m.summary, cmd = m.summary.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	case screenGlobalSearch:
+		var cmd tea.Cmd
+		m.search, cmd = m.search.Update(msg)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -518,6 +602,8 @@ func (m AppModel) View() string {
 		content = m.tasks.View()
 	case screenSummary:
 		content = m.summary.View()
+	case screenGlobalSearch:
+		content = m.search.View()
 	}
 
 	view := header + "\n" + content + "\n" + footer
@@ -632,6 +718,32 @@ func (m AppModel) fetchRecents() tea.Cmd {
 	}
 }
 
+// fetchAllTasksForSearch returns a batch of commands that fetch tasks for every
+// known project concurrently. Each command sends a globalTasksMsg on success.
+func (m AppModel) fetchAllTasksForSearch() []tea.Cmd {
+	projects := m.projects.projects
+	if len(projects) == 0 {
+		return []tea.Cmd{func() tea.Msg { return globalSearchDoneMsg{} }}
+	}
+
+	cmds := make([]tea.Cmd, 0, len(projects))
+	for _, p := range projects {
+		pid := string(p.ID)
+		pname := p.Name
+		client := m.client
+		cmds = append(cmds, func() tea.Msg {
+			tasks, err := client.ListTasks(context.Background(), pid)
+			if err != nil {
+				return globalTasksErrMsg{projectID: pid, projectName: pname, err: err}
+			}
+			return globalTasksMsg{projectID: pid, projectName: pname, tasks: tasks}
+		})
+	}
+	// Add spinner tick
+	cmds = append(cmds, m.search.spinner.Tick)
+	return cmds
+}
+
 func (m AppModel) stopTracking() tea.Cmd {
 	client := m.client
 	return func() tea.Msg {
@@ -691,6 +803,8 @@ func (m AppModel) isFiltering() bool {
 		return m.projects.list.FilterState() == list.Filtering
 	case screenTasks:
 		return m.tasks.list.FilterState() == list.Filtering
+	case screenGlobalSearch:
+		return m.search.list.FilterState() == list.Filtering
 	case screenSummary:
 		return false
 	}
