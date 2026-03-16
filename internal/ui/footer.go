@@ -16,10 +16,10 @@ func (m AppModel) footerView() string {
 	switch m.current {
 	case screenProjects:
 		hints = m.keyHint("enter", "select") + "  " +
-<<<<<<< HEAD
 			m.keyHint(m.keys.Stop, "stop") + "  " +
 			m.keyHint(m.keys.Refresh, "refresh") + "  " +
 			m.keyHint(m.keys.Filter, "filter") + "  " +
+			m.keyHint(m.keys.GlobalSearch, "search") + "  " +
 			m.keyHint(m.keys.Summary, "summary") + "  " +
 			m.keyHint(m.keys.Help, "help") + "  " +
 			m.keyHint(m.keys.Quit, "quit")
@@ -28,33 +28,16 @@ func (m AppModel) footerView() string {
 			m.keyHint(m.keys.Stop, "stop") + "  " +
 			m.keyHint(m.keys.Refresh, "refresh") + "  " +
 			m.keyHint(m.keys.Filter, "filter") + "  " +
+			m.keyHint(m.keys.GlobalSearch, "search") + "  " +
 			m.keyHint(m.keys.Summary, "summary") + "  " +
 			m.keyHint(m.keys.Help, "help") + "  " +
 			m.keyHint(m.keys.Quit, "back")
-=======
-			m.keyHint("ctrl+e", "stop") + "  " +
-			m.keyHint("ctrl+r", "refresh") + "  " +
-			m.keyHint("/", "filter") + "  " +
-			m.keyHint("G", "search") + "  " +
-			m.keyHint("T", "summary") + "  " +
-			m.keyHint("?", "help") + "  " +
-			m.keyHint("esc", "quit")
-	case screenTasks:
-		hints = m.keyHint("enter", "start/switch") + "  " +
-			m.keyHint("ctrl+e", "stop") + "  " +
-			m.keyHint("ctrl+r", "refresh") + "  " +
-			m.keyHint("/", "filter") + "  " +
-			m.keyHint("G", "search") + "  " +
-			m.keyHint("T", "summary") + "  " +
-			m.keyHint("?", "help") + "  " +
-			m.keyHint("esc", "back")
 	case screenGlobalSearch:
 		hints = m.keyHint("enter", "start") + "  " +
-			m.keyHint("ctrl+e", "stop") + "  " +
-			m.keyHint("/", "filter") + "  " +
-			m.keyHint("?", "help") + "  " +
-			m.keyHint("esc", "back")
->>>>>>> worktree-agent-ab749b0d
+			m.keyHint(m.keys.Stop, "stop") + "  " +
+			m.keyHint(m.keys.Filter, "filter") + "  " +
+			m.keyHint(m.keys.Help, "help") + "  " +
+			m.keyHint(m.keys.Quit, "back")
 	case screenSummary:
 		hints = m.keyHint("j/k", "scroll") + "  " +
 			m.keyHint(m.keys.Summary, "back") + "  " +

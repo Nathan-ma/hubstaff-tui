@@ -167,16 +167,10 @@ func (m HelpModel) helpContent(width int) string {
 		{
 			title: "Views",
 			keys: []struct{ key, desc string }{
-<<<<<<< HEAD
+				{m.keys.GlobalSearch, "Global task search"},
 				{m.keys.Summary, "Today's summary"},
 				{m.keys.Help, "Toggle this help"},
 				{m.keys.Refresh, "Refresh (clear cache)"},
-=======
-				{"G / Ctrl+F", "Global task search"},
-				{"T", "Today's summary"},
-				{"?", "Toggle this help"},
-				{"Ctrl+R", "Refresh (clear cache)"},
->>>>>>> worktree-agent-ab749b0d
 			},
 		},
 		{

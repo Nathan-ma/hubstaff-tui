@@ -96,14 +96,12 @@ type AppModel struct {
 	// so we can ignore stale debounceMsg arrivals.
 	debounceProjectID string
 
-<<<<<<< HEAD
 	// Config hot-reload
 	configPath    string
 	configWatcher *config.Watcher
-=======
+
 	// previousScreen remembers the screen to return to from global search.
 	previousScreen screen
->>>>>>> worktree-agent-ab749b0d
 }
 
 // NewApp creates a new AppModel ready for tea.NewProgram.
@@ -122,35 +120,21 @@ func NewApp(cfg config.Config, client *api.Client, st *store.Store, configPath s
 	}
 
 	return AppModel{
-<<<<<<< HEAD
-		cfg:       cfg,
-		client:    client,
-		store:     st,
-		theme:     theme,
-		keys:      NewKeyMap(cfg.Keybindings),
-		current:   screenProjects,
-		projects:  NewProjectsModel(theme),
-		tasks:     NewTasksModel(theme),
-		help:      NewHelpModel(theme, NewKeyMap(cfg.Keybindings)),
-		summary:   NewSummaryModel(theme),
-		search:    NewSearchModel(theme),
-		appState:  appState,
-		statePath: statePath,
-=======
 		cfg:           cfg,
 		client:        client,
 		store:         st,
 		theme:         theme,
+		keys:          NewKeyMap(cfg.Keybindings),
 		current:       screenProjects,
 		projects:      NewProjectsModel(theme),
 		tasks:         NewTasksModel(theme),
-		help:          NewHelpModel(theme),
+		help:          NewHelpModel(theme, NewKeyMap(cfg.Keybindings)),
 		summary:       NewSummaryModel(theme),
+		search:        NewSearchModel(theme),
 		appState:      appState,
 		statePath:     statePath,
 		configPath:    configPath,
 		configWatcher: watcher,
->>>>>>> worktree-agent-a2f9bc49
 	}
 }
 
