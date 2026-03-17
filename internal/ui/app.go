@@ -35,8 +35,11 @@ const (
 	paneTasks
 )
 
-// minTwoPaneWidth is the minimum terminal width for two-pane mode.
+// minTwoPaneWidth is the minimum terminal width for two-pane layout.
 const minTwoPaneWidth = 100
+
+// minThreePaneWidth is the minimum terminal width for three-pane layout (with preview).
+const minThreePaneWidth = 140
 
 // pendingSwitch holds the state for a quick-switch confirmation prompt.
 type pendingSwitch struct {
@@ -62,6 +65,7 @@ type AppModel struct {
 	tasks    TasksModel
 	summary  SummaryModel
 	search   SearchModel
+	preview  PreviewModel
 
 	// Global state
 	status api.Status
@@ -88,9 +92,15 @@ type AppModel struct {
 	appState  state.AppState
 	statePath string
 
-	// Two-pane layout
-	twoPane     bool // true when terminal width >= minTwoPaneWidth
-	focusedPane pane // which pane has focus in two-pane mode
+	// Multi-pane layout
+	twoPane   bool // true when terminal width >= minTwoPaneWidth
+	threePane bool // true when terminal width >= minThreePaneWidth (adds preview)
+
+	// Cached pane content dimensions (set in WindowSizeMsg, used in View).
+	projPaneW    int
+	taskPaneW    int
+	previewPaneW int
+	paneH        int
 
 	// Debounce: tracks the last project ID we scheduled a debounce for,
 	// so we can ignore stale debounceMsg arrivals.
@@ -131,6 +141,7 @@ func NewApp(cfg config.Config, client *api.Client, st *store.Store, configPath s
 		help:          NewHelpModel(theme, NewKeyMap(cfg.Keybindings)),
 		summary:       NewSummaryModel(theme),
 		search:        NewSearchModel(theme),
+		preview:       NewPreviewModel(theme),
 		appState:      appState,
 		statePath:     statePath,
 		configPath:    configPath,
@@ -163,30 +174,49 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.twoPane = m.width >= minTwoPaneWidth
+		m.threePane = m.width >= minThreePaneWidth
 		headerHeight := 1
 		footerHeight := 1
 		contentHeight := m.height - headerHeight - footerHeight
 		if contentHeight < 1 {
 			contentHeight = 1
 		}
-		if m.twoPane {
-			// In two-pane mode: projects get 35% width, tasks get 65%.
-			// Subtract 1 for the vertical separator between panes.
-			projWidth := m.width*35/100 - 2 // -2 for border padding
-			taskWidth := m.width - projWidth - 1 - 2 // -1 separator, -2 for border padding
-			if projWidth < 10 {
-				projWidth = 10
+		// paneH is the content height inside each bordered pane (border adds 2).
+		m.paneH = contentHeight - 2
+		if m.paneH < 1 {
+			m.paneH = 1
+		}
+		if m.threePane {
+			// Three-pane: projects 25% | tasks 45% | preview 30%.
+			// Each pane is wrapped in a rounded border (+2 width per pane).
+			// projPane+taskPane+previewPane widths must sum to m.width exactly.
+			m.projPaneW = m.width*25/100 - 2
+			m.previewPaneW = m.width*30/100 - 2
+			m.taskPaneW = m.width - (m.projPaneW + 2) - (m.previewPaneW + 2) - 2
+			if m.projPaneW < 10 {
+				m.projPaneW = 10
 			}
-			if taskWidth < 10 {
-				taskWidth = 10
+			if m.taskPaneW < 10 {
+				m.taskPaneW = 10
 			}
-			// Subtract 2 from height for pane borders (top+bottom)
-			paneHeight := contentHeight - 2
-			if paneHeight < 1 {
-				paneHeight = 1
+			if m.previewPaneW < 10 {
+				m.previewPaneW = 10
 			}
-			m.projects.SetSize(projWidth, paneHeight)
-			m.tasks.SetSize(taskWidth, paneHeight)
+			m.projects.SetSize(m.projPaneW, m.paneH)
+			m.tasks.SetSize(m.taskPaneW, m.paneH)
+			m.preview.SetSize(m.previewPaneW, m.paneH)
+		} else if m.twoPane {
+			// Two-pane: projects 35% | tasks 65%.
+			m.projPaneW = m.width*35/100 - 2
+			m.taskPaneW = m.width - (m.projPaneW + 2) - 2
+			if m.projPaneW < 10 {
+				m.projPaneW = 10
+			}
+			if m.taskPaneW < 10 {
+				m.taskPaneW = 10
+			}
+			m.projects.SetSize(m.projPaneW, m.paneH)
+			m.tasks.SetSize(m.taskPaneW, m.paneH)
 		} else {
 			m.projects.SetSize(m.width, contentHeight)
 			m.tasks.SetSize(m.width, contentHeight)
@@ -245,6 +275,15 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+c":
 				m.saveCurrentState()
 				return m, tea.Quit
+			case m.keys.SwitchPane:
+				if (m.twoPane || m.threePane) && (m.current == screenProjects || m.current == screenTasks) {
+					if m.current == screenProjects {
+						m.current = screenTasks
+					} else {
+						m.current = screenProjects
+					}
+					return m, nil
+				}
 			case m.keys.Help:
 				m.showHelp = true
 				m.help.SetSize(m.width, m.height)
@@ -450,7 +489,15 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tasksMsg:
 		m.tasks.SetTasks(msg.tasks, m.status)
-		return m, nil
+		// In three-pane mode, initialize the preview for the first selected task.
+		if m.threePane {
+			if t, ok := m.tasks.SelectedTask(); ok {
+				tracking := m.tracking && string(m.status.ActiveTask.ID) == string(t.ID)
+				m.preview.SetTask(t, m.tasks.projectName, tracking)
+				cmds = append(cmds, m.fetchPreview(string(t.ID)))
+			}
+		}
+		return m, tea.Batch(cmds...)
 
 	case recentsMsg:
 		m.tasks.SetRecents([]store.RecentRow(msg))
@@ -565,6 +612,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tasks.theme = newTheme
 		m.help.theme = newTheme
 		m.summary.theme = newTheme
+		m.preview.theme = newTheme
 		m.statusMsg = "Config reloaded"
 		m.statusErr = false
 		cmds = append(cmds, m.clearStatusAfter())
@@ -573,6 +621,23 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case clearStatusMsg:
 		m.statusMsg = ""
 		m.statusErr = false
+		return m, nil
+
+	case debounceMsg:
+		// Only act if the selection hasn't changed since the debounce was fired.
+		if (m.twoPane || m.threePane) && msg.projectID == m.debounceProjectID {
+			if m.tasks.projectID != msg.projectID {
+				m.tasks.SetProject(msg.projectID, msg.projectName)
+				cmds = append(cmds, m.fetchTasks(msg.projectID), m.fetchRecents(), m.tasks.spinner.Tick)
+			}
+		}
+		return m, tea.Batch(cmds...)
+
+	case taskPreviewMsg:
+		// Only update if the preview is still showing this task.
+		if string(m.preview.task.ID) == msg.taskID {
+			m.preview.SetTodaySeconds(msg.seconds)
+		}
 		return m, nil
 
 	case globalTasksMsg:
@@ -601,16 +666,55 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Route to active sub-model
 	switch m.current {
 	case screenProjects:
+		// Snapshot selected project before update for debounce detection.
+		prevProjID := ""
+		if p, ok := m.projects.SelectedProject(); ok {
+			prevProjID = string(p.ID)
+		}
 		var cmd tea.Cmd
 		m.projects, cmd = m.projects.Update(msg)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+		// In multi-pane mode, fire debounce when cursor moves to a new project
+		// so tasks are pre-loaded in the right pane.
+		if m.twoPane || m.threePane {
+			if p, ok := m.projects.SelectedProject(); ok {
+				newID := string(p.ID)
+				if newID != prevProjID {
+					m.debounceProjectID = newID
+					cmds = append(cmds, debounceCmd(newID, p.Name))
+				}
+			}
+			// Also keep tasks model updated for spinners/ticks in right pane.
+			if _, isKey := msg.(tea.KeyMsg); !isKey {
+				var taskCmd tea.Cmd
+				m.tasks, taskCmd = m.tasks.Update(msg)
+				if taskCmd != nil {
+					cmds = append(cmds, taskCmd)
+				}
+			}
+		}
 	case screenTasks:
+		// Snapshot selected task before update for preview change detection.
+		prevTaskID := ""
+		if t, ok := m.tasks.SelectedTask(); ok {
+			prevTaskID = string(t.ID)
+		}
 		var cmd tea.Cmd
 		m.tasks, cmd = m.tasks.Update(msg)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
+		}
+		// Update preview when the selected task changes.
+		if m.threePane {
+			if t, ok := m.tasks.SelectedTask(); ok {
+				if string(t.ID) != prevTaskID {
+					tracking := m.tracking && string(m.status.ActiveTask.ID) == string(t.ID)
+					m.preview.SetTask(t, m.tasks.projectName, tracking)
+					cmds = append(cmds, m.fetchPreview(string(t.ID)))
+				}
+			}
 		}
 	case screenSummary:
 		var cmd tea.Cmd
@@ -645,10 +749,16 @@ func (m AppModel) View() string {
 
 	var content string
 	switch m.current {
-	case screenProjects:
-		content = m.projects.View()
-	case screenTasks:
-		content = m.tasks.View()
+	case screenProjects, screenTasks:
+		if m.threePane {
+			content = m.threePaneView()
+		} else if m.twoPane {
+			content = m.twoPaneView()
+		} else if m.current == screenProjects {
+			content = m.projects.View()
+		} else {
+			content = m.tasks.View()
+		}
 	case screenSummary:
 		content = m.summary.View()
 	case screenGlobalSearch:
@@ -664,6 +774,33 @@ func (m AppModel) View() string {
 	}
 
 	return view
+}
+
+// renderPane wraps content in a bordered box. active panes use the accent border.
+func (m AppModel) renderPane(content string, width int, active bool) string {
+	s := m.theme.PaneBorder
+	if active {
+		s = m.theme.ActiveBorder
+	}
+	return s.Width(width).Render(content)
+}
+
+// twoPaneView renders projects and tasks side-by-side.
+func (m AppModel) twoPaneView() string {
+	projActive := m.current == screenProjects
+	projPane := m.renderPane(m.projects.View(), m.projPaneW, projActive)
+	taskPane := m.renderPane(m.tasks.View(), m.taskPaneW, !projActive)
+	return lipgloss.JoinHorizontal(lipgloss.Top, projPane, taskPane)
+}
+
+// threePaneView renders projects, tasks, and preview side-by-side.
+func (m AppModel) threePaneView() string {
+	projActive := m.current == screenProjects
+	taskActive := m.current == screenTasks
+	projPane := m.renderPane(m.projects.View(), m.projPaneW, projActive)
+	taskPane := m.renderPane(m.tasks.View(), m.taskPaneW, taskActive)
+	prevPane := m.renderPane(m.preview.View(), m.previewPaneW, false)
+	return lipgloss.JoinHorizontal(lipgloss.Top, projPane, taskPane, prevPane)
 }
 
 // confirmView renders the quick-switch confirmation prompt in the footer area.
@@ -807,6 +944,23 @@ func (m AppModel) stopTracking() tea.Cmd {
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(_ time.Time) tea.Msg {
 		return tickMsg{}
+	})
+}
+
+func (m AppModel) fetchPreview(taskID string) tea.Cmd {
+	st := m.store
+	return func() tea.Msg {
+		if st == nil {
+			return taskPreviewMsg{taskID: taskID, seconds: 0}
+		}
+		secs, _ := st.TaskTodaySeconds(taskID)
+		return taskPreviewMsg{taskID: taskID, seconds: secs}
+	}
+}
+
+func debounceCmd(projectID, projectName string) tea.Cmd {
+	return tea.Tick(150*time.Millisecond, func(_ time.Time) tea.Msg {
+		return debounceMsg{projectID: projectID, projectName: projectName}
 	})
 }
 

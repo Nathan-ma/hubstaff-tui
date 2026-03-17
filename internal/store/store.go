@@ -367,6 +367,21 @@ func (s *Store) TodaySummary() ([]SummaryRow, error) {
 	return summary, rows.Err()
 }
 
+// TaskTodaySeconds returns the total tracked seconds for a specific task today.
+func (s *Store) TaskTodaySeconds(taskID string) (int, error) {
+	today := time.Now().UTC().Format("2006-01-02")
+	var secs int
+	err := s.db.QueryRow(`
+		SELECT COALESCE(SUM(duration_seconds), 0)
+		FROM sessions
+		WHERE task_id = ? AND date(started_at) = ?
+	`, taskID, today).Scan(&secs)
+	if err != nil {
+		return 0, fmt.Errorf("store: task today seconds: %w", err)
+	}
+	return secs, nil
+}
+
 // --- Recents ---
 
 // TouchRecent upserts a task into the recents table with the current timestamp.

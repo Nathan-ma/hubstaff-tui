@@ -52,7 +52,16 @@ type configReloadedMsg struct{ cfg config.Config }
 // debounceMsg is sent after a debounce delay when the project selection changes
 // in two-pane mode. If the projectID still matches the current selection,
 // tasks are fetched for that project.
-type debounceMsg struct{ projectID string }
+type debounceMsg struct {
+	projectID   string
+	projectName string
+}
+
+// taskPreviewMsg carries today's tracked seconds for the preview pane.
+type taskPreviewMsg struct {
+	taskID  string
+	seconds int
+}
 
 // globalTasksMsg delivers tasks for a single project during global search.
 type globalTasksMsg struct {
