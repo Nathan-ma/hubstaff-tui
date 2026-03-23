@@ -35,6 +35,7 @@ brews:
   - repository:
       owner: Nathan-ma
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: "https://github.com/Nathan-ma/hubstaff-tui"
     description: "Fast Hubstaff time tracking TUI for tmux floating popups"
     install: |
