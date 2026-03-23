@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-23
+
+### Added
+- `hubstaff-tui doctor` subcommand for setup diagnostics — validates HubstaffCLI binary, config file, database, and active session
+- `make goreleaser-check` — validates `.goreleaser.yaml` config locally (requires goreleaser in PATH)
+- `make release-dry` — runs full snapshot build to test cross-compilation without publishing
+- CI badge in README
+- Dependabot configured for weekly Go module and GitHub Actions updates
+- `CONTRIBUTING.md` with development setup and contribution guidelines
+- Issue templates (bug report, feature request)
+
+### Fixed
+- Separator selection test in `TasksModel` now fails properly instead of silently skipping
+
+### Changed
+- GitHub Actions updated to Node.js 24-compatible versions (checkout v6, setup-go v6, golangci-lint-action v9, goreleaser-action v7, upload-artifact v7)
+- Homebrew installation instructions updated in README with working tap commands
+
 ## [0.1.0] - 2026-03-23
 
 ### Added
@@ -34,5 +52,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-compiled static binaries: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64
 - GoReleaser-based release automation with Homebrew tap support
 
-[Unreleased]: https://github.com/Nathan-ma/hubstaff-tui/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Nathan-ma/hubstaff-tui/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Nathan-ma/hubstaff-tui/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Nathan-ma/hubstaff-tui/releases/tag/v0.1.0
