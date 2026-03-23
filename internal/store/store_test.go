@@ -671,6 +671,108 @@ func TestSessionHistory_DefaultDays(t *testing.T) {
 	}
 }
 
+func TestGetSessionsInRange(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.UpsertProjects([]ProjectRow{{ID: "p1", Name: "My Project"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertTasks("p1", []TaskRow{{ID: "t1", Summary: "My Task"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+
+	// Session within range (today).
+	inStart := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, time.UTC)
+	inStop := inStart.Add(time.Hour)
+	if err := s.InsertSessionForTest("t1", "p1", inStart, &inStop, 3600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Session outside range (10 days ago).
+	outStart := now.AddDate(0, 0, -10)
+	outStop := outStart.Add(time.Hour)
+	if err := s.InsertSessionForTest("t1", "p1", outStart, &outStop, 3600); err != nil {
+		t.Fatal(err)
+	}
+
+	rangeStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	rangeEnd := rangeStart.Add(24 * time.Hour)
+	sessions, err := s.GetSessionsInRange(rangeStart, rangeEnd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("expected 1 session in range, got %d", len(sessions))
+	}
+	if sessions[0].ProjectName != "My Project" {
+		t.Errorf("project: want %q, got %q", "My Project", sessions[0].ProjectName)
+	}
+	if sessions[0].TaskSummary != "My Task" {
+		t.Errorf("task: want %q, got %q", "My Task", sessions[0].TaskSummary)
+	}
+	if sessions[0].DurationSeconds != 3600 {
+		t.Errorf("duration: want 3600, got %d", sessions[0].DurationSeconds)
+	}
+	if sessions[0].StoppedAt == nil {
+		t.Error("expected non-nil StoppedAt")
+	}
+}
+
+func TestGetSessionsInRange_Empty(t *testing.T) {
+	s := newTestStore(t)
+	now := time.Now().UTC()
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	sessions, err := s.GetSessionsInRange(start, end)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 0 {
+		t.Fatalf("expected 0 sessions, got %d", len(sessions))
+	}
+}
+
+func TestInsertSessionForTest(t *testing.T) {
+	s := newTestStore(t)
+
+	now := time.Now().UTC()
+	start := now.Add(-2 * time.Hour)
+	stop := now.Add(-time.Hour)
+	if err := s.InsertSessionForTest("t1", "p1", start, &stop, 3600); err != nil {
+		t.Fatal(err)
+	}
+
+	var count int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM sessions").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 session, got %d", count)
+	}
+}
+
+func TestInsertSessionForTest_ActiveSession(t *testing.T) {
+	s := newTestStore(t)
+
+	now := time.Now().UTC()
+	start := now.Add(-time.Hour)
+	// nil stoppedAt simulates an active session.
+	if err := s.InsertSessionForTest("t1", "p1", start, nil, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	var stoppedAt *string
+	err := s.db.QueryRow("SELECT stopped_at FROM sessions WHERE id = 1").Scan(&stoppedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stoppedAt != nil {
+		t.Error("expected stopped_at to be NULL for active session")
+	}
+}
+
 func TestInvalidateTasks(t *testing.T) {
 	s := newTestStore(t)
 
