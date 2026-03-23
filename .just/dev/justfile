@@ -1,0 +1,29 @@
+set working-directory := '../..'
+
+version := `cat VERSION 2>/dev/null || echo "dev"`
+binary := "hubstaff-tui"
+
+# Run the TUI (builds first)
+run: _build
+    ./{{binary}}
+
+# Run the status subcommand
+status: _build
+    ./{{binary}} status
+
+# Setup development environment (install tools)
+setup:
+    go mod download
+    @echo "Installing development tools..."
+    go install golang.org/x/tools/cmd/goimports@latest
+    @echo ""
+    @echo "Optional: install these for full workflow"
+    @echo "  brew install golangci-lint  # or: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
+    @echo "  brew install lefthook       # git hooks"
+    @echo "  brew install convco         # conventional commits"
+    @echo ""
+    @echo "Then run: lefthook install"
+
+# Internal: build before run
+_build:
+    CGO_ENABLED=0 go build -ldflags "-s -w -X main.version={{version}}" -o {{binary}} ./cmd/hubstaff-tui

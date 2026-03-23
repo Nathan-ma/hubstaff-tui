@@ -1,0 +1,20 @@
+# lefthook.yml — git hooks for hubstaff-tui
+# Install: lefthook install
+
+pre-commit:
+  parallel: true
+  commands:
+    build:
+      run: go build ./...
+    vet:
+      run: go vet ./...
+    test:
+      run: go test ./...
+    lint:
+      glob: "*.go"
+      run: golangci-lint run --fix
+
+commit-msg:
+  commands:
+    convco-check:
+      run: which convco > /dev/null 2>&1 && convco check --from-stdin < {1} || echo "convco not found, skipping commit-msg check"

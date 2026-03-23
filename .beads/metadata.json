@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "hubstaff_cli",
+  "project_id": "33ac1124-51b9-46d8-80dc-bda720d89568"
+}

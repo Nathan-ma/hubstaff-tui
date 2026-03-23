@@ -1,0 +1,26 @@
+set working-directory := '../..'
+
+version := `cat VERSION 2>/dev/null || echo "dev"`
+binary := "hubstaff-tui"
+
+# Build the binary
+build:
+    CGO_ENABLED=0 go build -ldflags "-s -w -X main.version={{version}}" -o {{binary}} ./cmd/hubstaff-tui
+
+# Cross-compile for all targets
+cross:
+    mkdir -p dist
+    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w -X main.version={{version}}" -o dist/{{binary}}-darwin-arm64 ./cmd/hubstaff-tui
+    CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w -X main.version={{version}}" -o dist/{{binary}}-darwin-amd64 ./cmd/hubstaff-tui
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version={{version}}" -o dist/{{binary}}-linux-amd64 ./cmd/hubstaff-tui
+    CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.version={{version}}" -o dist/{{binary}}-linux-arm64 ./cmd/hubstaff-tui
+    @ls -lh dist/
+
+# Clean build artifacts
+clean:
+    rm -f {{binary}} coverage.out
+    rm -rf dist/
+
+# Show current version
+version:
+    @echo {{version}}

@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main, rc-*]
+  pull_request:
+    branches: [master, main, rc-*]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.11.4
+
+  commitlint:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install convco
+        run: |
+          curl -sSfL https://github.com/convco/convco/releases/latest/download/convco-ubuntu.zip -o convco.zip
+          unzip convco.zip
+          chmod +x convco
+          sudo mv convco /usr/local/bin/
+
+      - name: Validate commits
+        run: |
+          # Start from the commit after 94a98cb ('bd init: ...' predates
+          # conventional-commit enforcement and cannot be retroactively fixed).
+          SKIP_SHA=94a98cb0584baa7c6724c9c44180e0d454443f67
+          BASE=${{ github.event.pull_request.base.sha }}
+          HEAD=${{ github.event.pull_request.head.sha }}
+          if git merge-base --is-ancestor "$SKIP_SHA" "$HEAD" 2>/dev/null; then
+            BASE="$SKIP_SHA"
+          fi
+          convco check "${BASE}..${HEAD}"
+
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go-version: ['1.24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build
+        run: CGO_ENABLED=0 go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  cross-compile:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Cross-compile
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: go build -o hubstaff-tui-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/hubstaff-tui

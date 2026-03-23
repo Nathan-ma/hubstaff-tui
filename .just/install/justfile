@@ -1,0 +1,24 @@
+set working-directory := '../..'
+
+version := `cat VERSION 2>/dev/null || echo "dev"`
+binary := "hubstaff-tui"
+
+# Install to /usr/local/bin
+system: _build
+    install -m 755 {{binary}} /usr/local/bin/{{binary}}
+    @echo "Installed {{binary}} {{version}} to /usr/local/bin/{{binary}}"
+
+# Install to ~/.local/bin (no sudo needed)
+local: _build
+    mkdir -p ~/.local/bin
+    install -m 755 {{binary}} ~/.local/bin/{{binary}}
+    @echo "Installed {{binary}} {{version}} to ~/.local/bin/{{binary}}"
+
+# Uninstall from /usr/local/bin
+uninstall:
+    rm -f /usr/local/bin/{{binary}}
+    @echo "Removed /usr/local/bin/{{binary}}"
+
+# Internal: build before install
+_build:
+    CGO_ENABLED=0 go build -ldflags "-s -w -X main.version={{version}}" -o {{binary}} ./cmd/hubstaff-tui

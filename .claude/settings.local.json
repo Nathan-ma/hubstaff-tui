@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth:*)",
+      "Bash(gh api:*)",
+      "Bash(git init:*)",
+      "Bash(gh repo:*)",
+      "Skill(create-release)",
+      "Bash(git clone:*)",
+      "Skill(create-phase)"
+    ]
+  }
+}

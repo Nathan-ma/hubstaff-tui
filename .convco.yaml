@@ -1,0 +1,16 @@
+# Conventional commits config for convco
+version: "0.1.0"
+types:
+  - feat
+  - fix
+  - chore
+  - docs
+  - style
+  - refactor
+  - perf
+  - test
+  - ci
+  - build
+  - revert
+  - bd
+scopes: []

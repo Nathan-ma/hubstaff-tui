@@ -1,0 +1,23 @@
+# Binary (root only, not cmd/ directory)
+/hubstaff-tui
+
+# Build
+dist/
+coverage.out
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# bv (beads viewer) local config and caches
+.bv/

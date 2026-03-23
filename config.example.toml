@@ -1,0 +1,34 @@
+# hubstaff-tui configuration
+# Place this file at ~/.config/hubstaff-tui/config.toml
+
+[hubstaff]
+# Path to the HubstaffCLI binary
+# cli_path = "/Applications/Hubstaff.app/Contents/MacOS/HubstaffCLI"
+
+[store]
+# Cache TTL in seconds for projects and tasks
+# ttl_seconds = 300
+# Path to the local SQLite database
+# db_path = "~/.local/share/hubstaff-tui/hubstaff.db"
+
+[ui]
+# Theme: "catppuccin-mocha" or "plain" (ASCII-only, no colors)
+# theme = "catppuccin-mocha"
+# Background status poll interval in seconds (0 to disable)
+# poll_interval = 30
+# bell = true  # terminal bell on tracking start/stop
+
+[recent_tasks]
+# Maximum number of recent tasks to show
+# max_items = 5
+
+[keybindings]
+# Override default keybindings (all are optional; omitted keys use defaults)
+# quit = "esc"
+# stop = "ctrl+e"
+# refresh = "ctrl+r"
+# filter = "/"
+# help = "?"
+# summary = "T"
+# switch_pane = "tab"
+# global_search = "ctrl+f"
