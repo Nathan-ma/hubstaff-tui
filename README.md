@@ -1,5 +1,7 @@
 # hubstaff-tui
 
+[![CI](https://github.com/Nathan-ma/hubstaff-tui/actions/workflows/ci.yml/badge.svg)](https://github.com/Nathan-ma/hubstaff-tui/actions/workflows/ci.yml)
+
 Fast Hubstaff time tracking TUI for tmux floating popups — Go + Bubbletea.
 
 ![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go&logoColor=white)
