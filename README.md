@@ -123,6 +123,18 @@ hubstaff-tui setup
 
 This appends the popup keybinding and status bar configuration to `~/.tmux.conf` and reloads it.
 
+### hubstaff-tui doctor
+
+Run setup diagnostics to validate your configuration:
+
+```bash
+$ hubstaff-tui doctor
+  [PASS] HubstaffCLI: /Applications/Hubstaff.app/Contents/MacOS/HubstaffCLI
+  [PASS] Config: /Users/you/.config/hubstaff-tui/config.toml
+  [PASS] Database: /Users/you/.local/share/hubstaff-tui/hubstaff.db
+  [WARN] Active session: not tracking
+```
+
 ## Keybindings
 
 ### Projects screen
