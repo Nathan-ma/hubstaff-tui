@@ -12,4 +12,5 @@ types:
   - ci
   - build
   - revert
+  - bd
 scopes: []
