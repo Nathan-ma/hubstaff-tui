@@ -263,7 +263,7 @@ func TestTasksModel_SelectedTask_ReturnsFalseForSeparator(t *testing.T) {
 	}
 	_, isSep := items[0].(separatorItem)
 	if !isSep {
-		t.Skip("first item is not a separator; skipping separator selection test")
+		t.Fatal("expected first item to be a separatorItem, but it was not; cannot test separator selection")
 	}
 
 	// The list starts at index 0 (the separator). SelectedTask should return false.
