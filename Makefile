@@ -1,4 +1,4 @@
-.PHONY: build test vet lint install clean
+.PHONY: build test vet lint install clean goreleaser-check release-dry
 
 BINARY := hubstaff-tui
 VERSION := $(shell cat VERSION 2>/dev/null || echo "dev")
@@ -21,5 +21,13 @@ install: build
 
 clean:
 	rm -f $(BINARY)
+
+goreleaser-check:
+	@which goreleaser > /dev/null 2>&1 || (echo "goreleaser not found. Install with: brew install goreleaser" && exit 1)
+	goreleaser check
+
+release-dry:
+	@which goreleaser > /dev/null 2>&1 || (echo "goreleaser not found. Install with: brew install goreleaser" && exit 1)
+	goreleaser release --snapshot --clean
 
 all: vet test build
