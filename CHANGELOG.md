@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-03-23
+
+### Added
+- `hubstaff-tui completion` subcommand — generates shell completion scripts for bash, zsh, and fish
+- `hubstaff-tui export` subcommand — exports tracked session data as CSV or JSON
+  - Flags: `--format csv|json`, `--today` (default), `--week`, `--since YYYY-MM-DD`
+  - Reads directly from local SQLite store, no API call required
+- `GetSessionsInRange` store method for querying sessions by date range
+
 ## [0.2.0] - 2026-03-23
 
 ### Added
@@ -52,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-compiled static binaries: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64
 - GoReleaser-based release automation with Homebrew tap support
 
-[Unreleased]: https://github.com/Nathan-ma/hubstaff-tui/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Nathan-ma/hubstaff-tui/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Nathan-ma/hubstaff-tui/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/Nathan-ma/hubstaff-tui/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Nathan-ma/hubstaff-tui/releases/tag/v0.1.0
