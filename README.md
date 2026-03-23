@@ -42,20 +42,26 @@ A terminal UI that replaces the bash+fzf Hubstaff tracking script. Opens as a tm
 
 ## Installation
 
-### From source
+### Homebrew (macOS and Linux)
 
 ```bash
-go install github.com/Nathan-ma/hubstaff-tui/cmd/hubstaff-tui@latest
+brew tap Nathan-ma/tap
+brew install Nathan-ma/tap/hubstaff-tui
 ```
 
-### From releases
-
-Download the latest binary from [GitHub Releases](https://github.com/Nathan-ma/hubstaff-tui/releases).
-
-### Homebrew (coming soon)
+### Download from GitHub Releases
 
 ```bash
-brew install Nathan-ma/tap/hubstaff-tui
+# Download from GitHub Releases
+# Visit https://github.com/Nathan-ma/hubstaff-tui/releases/latest
+# Download the tarball for your platform, extract, and copy to PATH
+```
+
+### Go install
+
+```bash
+# Go install
+go install github.com/Nathan-ma/hubstaff-tui/cmd/hubstaff-tui@latest
 ```
 
 ## Prerequisites
