@@ -46,6 +46,8 @@ func main() {
 				os.Exit(1)
 			}
 			os.Exit(runDoctor(&cfg, configPath))
+		case "completion":
+			os.Exit(runCompletion(os.Args[2:]))
 		}
 	}
 
@@ -149,6 +151,7 @@ Usage:
   hubstaff-tui status     Print current tracking status (for tmux status-right)
   hubstaff-tui setup      Configure tmux keybinding
   hubstaff-tui doctor     Run setup diagnostics
+  hubstaff-tui completion Generate shell completion scripts (bash, zsh, fish)
 
 Options:
   --help, -h              Show this help

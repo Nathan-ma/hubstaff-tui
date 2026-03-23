@@ -135,6 +135,21 @@ $ hubstaff-tui doctor
   [WARN] Active session: not tracking
 ```
 
+## Shell Completions
+
+Generate and install shell completion scripts:
+
+```bash
+# Bash (add to ~/.bashrc)
+source <(hubstaff-tui completion bash)
+
+# Zsh (add to ~/.zshrc)
+source <(hubstaff-tui completion zsh)
+
+# Fish (save to completions directory)
+hubstaff-tui completion fish > ~/.config/fish/completions/hubstaff-tui.fish
+```
+
 ## Keybindings
 
 ### Projects screen
