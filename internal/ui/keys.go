@@ -13,6 +13,7 @@ type KeyMap struct {
 	Summary      string
 	SwitchPane   string
 	GlobalSearch string
+	History      string
 }
 
 // NewKeyMap creates a KeyMap from the user's keybindings configuration.
@@ -26,5 +27,6 @@ func NewKeyMap(cfg config.KeybindingsConfig) KeyMap {
 		Summary:      cfg.Summary,
 		SwitchPane:   cfg.SwitchPane,
 		GlobalSearch: cfg.GlobalSearch,
+		History:      cfg.History,
 	}
 }

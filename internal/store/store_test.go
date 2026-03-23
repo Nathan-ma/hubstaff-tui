@@ -590,6 +590,87 @@ func TestFmtTime_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestSessionHistory(t *testing.T) {
+	s := newTestStore(t)
+
+	// Insert project and task for join
+	if err := s.UpsertProjects([]ProjectRow{{ID: "p1", Name: "Project One"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertTasks("p1", []TaskRow{{ID: "t1", Summary: "Task One"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert a session 2 days ago
+	now := time.Now().UTC()
+	twoDaysAgo := now.AddDate(0, 0, -2)
+	_, err := s.db.Exec(
+		"INSERT INTO sessions (task_id, project_id, started_at, stopped_at, duration_seconds) VALUES (?, ?, ?, ?, ?)",
+		"t1", "p1", fmtTime(twoDaysAgo), fmtTime(twoDaysAgo.Add(time.Hour)), 3600,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert a very old session (>7 days) — should NOT appear
+	oldTime := now.AddDate(0, 0, -10)
+	_, err = s.db.Exec(
+		"INSERT INTO sessions (task_id, project_id, started_at, stopped_at, duration_seconds) VALUES (?, ?, ?, ?, ?)",
+		"t1", "p1", fmtTime(oldTime), fmtTime(oldTime.Add(time.Hour)), 7200,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	history, err := s.SessionHistory(7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 1 {
+		t.Fatalf("expected 1 history row (within 7 days), got %d", len(history))
+	}
+	if history[0].ProjectName != "Project One" {
+		t.Errorf("expected Project One, got %s", history[0].ProjectName)
+	}
+	if history[0].TaskSummary != "Task One" {
+		t.Errorf("expected Task One, got %s", history[0].TaskSummary)
+	}
+	if history[0].DurationSeconds != 3600 {
+		t.Errorf("expected 3600s, got %d", history[0].DurationSeconds)
+	}
+}
+
+func TestSessionHistory_Empty(t *testing.T) {
+	s := newTestStore(t)
+	history, err := s.SessionHistory(7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 0 {
+		t.Fatalf("expected empty history, got %d rows", len(history))
+	}
+}
+
+func TestSessionHistory_DefaultDays(t *testing.T) {
+	s := newTestStore(t)
+	// days <= 0 should default to 7
+	now := time.Now().UTC()
+	_, err := s.db.Exec(
+		"INSERT INTO sessions (task_id, project_id, started_at, stopped_at, duration_seconds) VALUES (?, ?, ?, ?, ?)",
+		"t1", "p1", fmtTime(now.Add(-time.Hour)), fmtTime(now), 60,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	history, err := s.SessionHistory(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 1 {
+		t.Fatalf("expected 1 row with default days, got %d", len(history))
+	}
+}
+
 func TestInvalidateTasks(t *testing.T) {
 	s := newTestStore(t)
 

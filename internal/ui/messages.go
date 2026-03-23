@@ -38,6 +38,8 @@ type clearStatusMsg struct{}
 
 type summaryMsg struct{ rows []store.SummaryRow }
 type summaryErrMsg struct{ err error }
+type historyMsg struct{ rows []store.HistorySummaryRow }
+type historyErrMsg struct{ err error }
 type recentsMsg []store.RecentRow
 type recentsErrMsg struct{ err error }
 

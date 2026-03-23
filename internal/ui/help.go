@@ -169,6 +169,7 @@ func (m HelpModel) helpContent(width int) string {
 			keys: []struct{ key, desc string }{
 				{m.keys.GlobalSearch, "Global task search"},
 				{m.keys.Summary, "Today's summary"},
+				{m.keys.History, "Session history"},
 				{m.keys.Help, "Toggle this help"},
 				{m.keys.Refresh, "Refresh (clear cache)"},
 			},

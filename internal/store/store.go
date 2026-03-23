@@ -53,6 +53,14 @@ type RecentRow struct {
 	UsedAt    time.Time
 }
 
+// HistorySummaryRow represents a session history entry grouped by date, project and task.
+type HistorySummaryRow struct {
+	Date            string // "2006-01-02"
+	ProjectName     string
+	TaskSummary     string
+	DurationSeconds int
+}
+
 const schema = `
 CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
@@ -416,6 +424,42 @@ func (s *Store) ListRecents(limit int) ([]RecentRow, error) {
 		recents = append(recents, r)
 	}
 	return recents, rows.Err()
+}
+
+// SessionHistory returns time tracked over the last N days grouped by date, project and task.
+// Results are ordered by date DESC, then duration DESC.
+func (s *Store) SessionHistory(days int) ([]HistorySummaryRow, error) {
+	if days <= 0 {
+		days = 7
+	}
+	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format("2006-01-02")
+	rows, err := s.db.Query(`
+		SELECT
+			date(s.started_at) AS day,
+			COALESCE(p.name, s.project_id) AS project_name,
+			COALESCE(t.summary, s.task_id) AS task_summary,
+			COALESCE(SUM(s.duration_seconds), 0) AS duration_seconds
+		FROM sessions s
+		LEFT JOIN projects p ON p.id = s.project_id
+		LEFT JOIN tasks t ON t.id = s.task_id
+		WHERE date(s.started_at) >= ?
+		GROUP BY day, s.project_id, s.task_id
+		ORDER BY day DESC, duration_seconds DESC
+	`, cutoff)
+	if err != nil {
+		return nil, fmt.Errorf("store: session history: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var history []HistorySummaryRow
+	for rows.Next() {
+		var r HistorySummaryRow
+		if err := rows.Scan(&r.Date, &r.ProjectName, &r.TaskSummary, &r.DurationSeconds); err != nil {
+			return nil, fmt.Errorf("store: scan history: %w", err)
+		}
+		history = append(history, r)
+	}
+	return history, rows.Err()
 }
 
 // InvalidateAll clears all TTL timestamps for projects and tasks, forcing

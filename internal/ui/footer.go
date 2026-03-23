@@ -21,6 +21,7 @@ func (m AppModel) footerView() string {
 			m.keyHint(m.keys.Filter, "filter") + "  " +
 			m.keyHint(m.keys.GlobalSearch, "search") + "  " +
 			m.keyHint(m.keys.Summary, "summary") + "  " +
+			m.keyHint(m.keys.History, "history") + "  " +
 			m.keyHint(m.keys.Help, "help") + "  " +
 			m.keyHint(m.keys.Quit, "quit")
 	case screenTasks:
@@ -30,6 +31,7 @@ func (m AppModel) footerView() string {
 			m.keyHint(m.keys.Filter, "filter") + "  " +
 			m.keyHint(m.keys.GlobalSearch, "search") + "  " +
 			m.keyHint(m.keys.Summary, "summary") + "  " +
+			m.keyHint(m.keys.History, "history") + "  " +
 			m.keyHint(m.keys.Help, "help") + "  " +
 			m.keyHint(m.keys.Quit, "back")
 	case screenGlobalSearch:
@@ -41,6 +43,10 @@ func (m AppModel) footerView() string {
 	case screenSummary:
 		hints = m.keyHint("j/k", "scroll") + "  " +
 			m.keyHint(m.keys.Summary, "back") + "  " +
+			m.keyHint(m.keys.Quit, "back")
+	case screenHistory:
+		hints = m.keyHint("j/k", "scroll") + "  " +
+			m.keyHint(m.keys.History, "back") + "  " +
 			m.keyHint(m.keys.Quit, "back")
 	}
 

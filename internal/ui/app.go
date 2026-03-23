@@ -25,6 +25,7 @@ const (
 	screenTasks
 	screenSummary
 	screenGlobalSearch
+	screenHistory
 )
 
 // minTwoPaneWidth is the minimum terminal width for two-pane layout.
@@ -58,6 +59,7 @@ type AppModel struct {
 	summary  SummaryModel
 	search   SearchModel
 	preview  PreviewModel
+	history  HistoryModel
 
 	// Global state
 	status api.Status
@@ -134,6 +136,7 @@ func NewApp(cfg config.Config, client *api.Client, st *store.Store, configPath s
 		summary:       NewSummaryModel(theme),
 		search:        NewSearchModel(theme),
 		preview:       NewPreviewModel(theme),
+		history:       NewHistoryModel(theme),
 		appState:      appState,
 		statePath:     statePath,
 		configPath:    configPath,
@@ -218,6 +221,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.summary.SetSize(m.width, contentHeight)
 		m.search.SetSize(m.width, contentHeight)
+		m.history.SetSize(m.width, contentHeight)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -302,6 +306,16 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.summary.SetSize(m.width, m.height-2) // header + footer
 					return m, m.fetchSummary()
 				}
+			case m.keys.History:
+				if m.current != screenHistory {
+					m.current = screenHistory
+					contentHeight := m.height - 2
+					if contentHeight < 1 {
+						contentHeight = 1
+					}
+					m.history.SetSize(m.width, contentHeight)
+					return m, m.fetchHistory()
+				}
 			case "G", "ctrl+f":
 				if m.current != screenGlobalSearch {
 					m.previousScreen = m.current
@@ -375,6 +389,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case screenSummary:
 				switch msg.String() {
 				case m.keys.Quit, m.keys.Summary:
+					m.current = screenProjects
+					return m, nil
+				}
+			case screenHistory:
+				switch msg.String() {
+				case m.keys.Quit, m.keys.History:
 					m.current = screenProjects
 					return m, nil
 				}
@@ -581,6 +601,16 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.clearStatusAfter())
 		return m, tea.Batch(cmds...)
 
+	case historyMsg:
+		m.history.SetRows(msg.rows)
+		return m, nil
+
+	case historyErrMsg:
+		m.statusMsg = fmt.Sprintf("History error: %v", msg.err)
+		m.statusErr = true
+		m.current = screenProjects
+		cmds = append(cmds, m.clearStatusAfter())
+		return m, tea.Batch(cmds...)
 	case configCheckMsg:
 		if m.configWatcher != nil && m.configWatcher.Changed() {
 			path := m.configPath
@@ -605,6 +635,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.help.theme = newTheme
 		m.summary.theme = newTheme
 		m.preview.theme = newTheme
+		m.history.theme = newTheme
 		m.statusMsg = "Config reloaded"
 		m.statusErr = false
 		cmds = append(cmds, m.clearStatusAfter())
@@ -714,6 +745,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case screenHistory:
+		var cmd tea.Cmd
+		m.history, cmd = m.history.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	case screenGlobalSearch:
 		var cmd tea.Cmd
 		m.search, cmd = m.search.Update(msg)
@@ -755,6 +792,8 @@ func (m AppModel) View() string {
 		content = m.summary.View()
 	case screenGlobalSearch:
 		content = m.search.View()
+	case screenHistory:
+		content = m.history.View()
 	}
 
 	view := header + "\n" + content + "\n" + footer
@@ -851,6 +890,21 @@ func (m AppModel) fetchSummary() tea.Cmd {
 			return summaryErrMsg{err: err}
 		}
 		return summaryMsg{rows: rows}
+	}
+}
+
+// fetchHistory fetches the last 7 days of session history from the store.
+func (m AppModel) fetchHistory() tea.Cmd {
+	st := m.store
+	return func() tea.Msg {
+		if st == nil {
+			return historyErrMsg{err: fmt.Errorf("store not configured")}
+		}
+		rows, err := st.SessionHistory(7)
+		if err != nil {
+			return historyErrMsg{err: err}
+		}
+		return historyMsg{rows: rows}
 	}
 }
 

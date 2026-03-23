@@ -31,6 +31,7 @@ type KeybindingsConfig struct {
 	Summary      string `toml:"summary"`
 	SwitchPane   string `toml:"switch_pane"`
 	GlobalSearch string `toml:"global_search"`
+	History      string `toml:"history"`
 }
 
 type HubstaffConfig struct {
@@ -87,6 +88,7 @@ func DefaultConfig() Config {
 			Summary:      "T",
 			SwitchPane:   "tab",
 			GlobalSearch: "ctrl+f",
+			History:      "H",
 		},
 	}
 }
