@@ -39,6 +39,13 @@ func main() {
 		case "setup":
 			runSetup()
 			os.Exit(0)
+		case "doctor":
+			cfg, err := config.Load(configPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+				os.Exit(1)
+			}
+			os.Exit(runDoctor(&cfg, configPath))
 		}
 	}
 
@@ -141,6 +148,7 @@ Usage:
   hubstaff-tui            Launch the interactive TUI
   hubstaff-tui status     Print current tracking status (for tmux status-right)
   hubstaff-tui setup      Configure tmux keybinding
+  hubstaff-tui doctor     Run setup diagnostics
 
 Options:
   --help, -h              Show this help
