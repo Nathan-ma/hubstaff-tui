@@ -41,7 +41,16 @@ jobs:
           sudo mv convco /usr/local/bin/
 
       - name: Validate commits
-        run: convco check ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+        run: |
+          # Start from the commit after 94a98cb ('bd init: ...' predates
+          # conventional-commit enforcement and cannot be retroactively fixed).
+          SKIP_SHA=94a98cb0584baa7c6724c9c44180e0d454443f67
+          BASE=${{ github.event.pull_request.base.sha }}
+          HEAD=${{ github.event.pull_request.head.sha }}
+          if git merge-base --is-ancestor "$SKIP_SHA" "$HEAD" 2>/dev/null; then
+            BASE="$SKIP_SHA"
+          fi
+          convco check "${BASE}..${HEAD}"
 
   build:
     runs-on: ${{ matrix.os }}
