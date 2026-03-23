@@ -27,14 +27,6 @@ const (
 	screenGlobalSearch
 )
 
-// pane identifies which pane has focus in two-pane mode.
-type pane int
-
-const (
-	paneProjects pane = iota
-	paneTasks
-)
-
 // minTwoPaneWidth is the minimum terminal width for two-pane layout.
 const minTwoPaneWidth = 100
 

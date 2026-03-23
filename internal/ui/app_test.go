@@ -16,10 +16,10 @@ func TestParseTrackedToday(t *testing.T) {
 		{"0:05:10", 5*time.Minute + 10*time.Second},
 		{"", 0},
 		{"invalid", 0},
-		{"1:2", 0},           // wrong format — only 2 parts
+		{"1:2", 0}, // wrong format — only 2 parts
 		{"10:30:45", 10*time.Hour + 30*time.Minute + 45*time.Second},
 		{"0:00:01", time.Second},
-		{"abc:de:fg", 0},     // non-numeric parts produce 0 via Atoi
+		{"abc:de:fg", 0}, // non-numeric parts produce 0 via Atoi
 	}
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {

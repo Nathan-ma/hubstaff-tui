@@ -181,7 +181,7 @@ func TestCheckCLI_NotExecutable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+	_ = f.Close()
 	// Ensure file is not executable
 	if err := os.Chmod(f.Name(), 0644); err != nil {
 		t.Fatal(err)
@@ -201,7 +201,7 @@ func TestCheckCLI_Valid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+	_ = f.Close()
 	if err := os.Chmod(f.Name(), 0755); err != nil {
 		t.Fatal(err)
 	}

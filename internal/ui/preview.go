@@ -90,4 +90,3 @@ func (m PreviewModel) View() string {
 
 	return b.String()
 }
-
