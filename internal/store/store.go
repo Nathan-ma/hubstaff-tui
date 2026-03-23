@@ -462,6 +462,72 @@ func (s *Store) SessionHistory(days int) ([]HistorySummaryRow, error) {
 	return history, rows.Err()
 }
 
+// Session represents a single tracked session with resolved project and task names.
+type Session struct {
+	Date            string     // "2006-01-02"
+	ProjectName     string
+	TaskSummary     string
+	DurationSeconds int
+	StartedAt       time.Time
+	StoppedAt       *time.Time
+}
+
+// GetSessionsInRange returns individual sessions whose started_at falls within
+// [start, end), with project and task names resolved via LEFT JOIN.
+// Sessions are ordered by started_at ASC.
+func (s *Store) GetSessionsInRange(start, end time.Time) ([]Session, error) {
+	rows, err := s.db.Query(`
+		SELECT
+			date(s.started_at) AS day,
+			COALESCE(p.name, s.project_id) AS project_name,
+			COALESCE(t.summary, s.task_id) AS task_summary,
+			COALESCE(s.duration_seconds, 0) AS duration_seconds,
+			s.started_at,
+			s.stopped_at
+		FROM sessions s
+		LEFT JOIN projects p ON p.id = s.project_id
+		LEFT JOIN tasks t ON t.id = s.task_id
+		WHERE s.started_at >= ? AND s.started_at < ?
+		ORDER BY s.started_at ASC
+	`, fmtTime(start), fmtTime(end))
+	if err != nil {
+		return nil, fmt.Errorf("store: get sessions in range: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var sessions []Session
+	for rows.Next() {
+		var sess Session
+		var startedAtStr string
+		var stoppedAtStr *string
+		if err := rows.Scan(&sess.Date, &sess.ProjectName, &sess.TaskSummary,
+			&sess.DurationSeconds, &startedAtStr, &stoppedAtStr); err != nil {
+			return nil, fmt.Errorf("store: scan session: %w", err)
+		}
+		sess.StartedAt = parseTime(startedAtStr)
+		if stoppedAtStr != nil {
+			t := parseTime(*stoppedAtStr)
+			sess.StoppedAt = &t
+		}
+		sessions = append(sessions, sess)
+	}
+	return sessions, rows.Err()
+}
+
+// InsertSessionForTest inserts a session with explicit started_at, stopped_at, and duration.
+// This is intended for use in tests only.
+func (s *Store) InsertSessionForTest(taskID, projectID string, startedAt time.Time, stoppedAt *time.Time, durationSeconds int) error {
+	var stoppedAtVal interface{}
+	if stoppedAt != nil {
+		stoppedAtVal = fmtTime(*stoppedAt)
+	}
+	_, err := s.db.Exec(
+		"INSERT INTO sessions (task_id, project_id, started_at, stopped_at, duration_seconds) VALUES (?, ?, ?, ?, ?)",
+		taskID, projectID, fmtTime(startedAt), stoppedAtVal, durationSeconds,
+	)
+	return err
+}
+
 // InvalidateAll clears all TTL timestamps for projects and tasks, forcing
 // re-fetch on next access.
 func (s *Store) InvalidateAll() error {

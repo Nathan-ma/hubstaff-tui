@@ -48,6 +48,13 @@ func main() {
 			os.Exit(runDoctor(&cfg, configPath))
 		case "completion":
 			os.Exit(runCompletion(os.Args[2:]))
+		case "export":
+			cfg, err := config.Load(configPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+				os.Exit(1)
+			}
+			os.Exit(runExport(&cfg, os.Args[2:]))
 		}
 	}
 
@@ -151,7 +158,8 @@ Usage:
   hubstaff-tui status     Print current tracking status (for tmux status-right)
   hubstaff-tui setup      Configure tmux keybinding
   hubstaff-tui doctor     Run setup diagnostics
-  hubstaff-tui completion Generate shell completion scripts (bash, zsh, fish)
+  hubstaff-tui export      Export tracked time data (CSV or JSON)
+  hubstaff-tui completion  Generate shell completion scripts (bash, zsh, fish)
 
 Options:
   --help, -h              Show this help
