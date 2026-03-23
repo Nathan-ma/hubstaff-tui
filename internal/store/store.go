@@ -464,7 +464,7 @@ func (s *Store) SessionHistory(days int) ([]HistorySummaryRow, error) {
 
 // Session represents a single tracked session with resolved project and task names.
 type Session struct {
-	Date            string     // "2006-01-02"
+	Date            string // "2006-01-02"
 	ProjectName     string
 	TaskSummary     string
 	DurationSeconds int
